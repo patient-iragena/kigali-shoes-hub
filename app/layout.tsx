@@ -3,6 +3,11 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Kigali Shoes Hub',
   description: 'Shop top quality footwear, sneakers, and formal shoes in Kigali with fast delivery across Rwanda.',
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
   openGraph: {
     title: 'Kigali Shoes Hub',
     description: 'Shop top quality footwear, sneakers, and formal shoes in Kigali with fast delivery across Rwanda.',
@@ -10,7 +15,7 @@ export const metadata: Metadata = {
     siteName: 'Kigali Shoes Hub',
     images: [
       {
-        url: 'https://www.kigalishoeshub.com/logo.png', // Ensure logo.png exists in your /public folder
+        url: 'https://www.kigalishoeshub.com/icon.png',
         width: 1200,
         height: 630,
         alt: 'Kigali Shoes Hub Logo',
