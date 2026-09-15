@@ -1,29 +1,21 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: "KIGALI SHOES HUB",
-  description: "STEP IN STYLE WITH A COMFORT PRICE",
-};
-
-export default function RootLayout({ children }: LayoutProps<"/">) {
-  return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
-    </html>
-  );
+  title: 'Kigali Shoes Hub',
+  description: 'Shop top quality footwear, sneakers, and formal shoes in Kigali with fast delivery across Rwanda.',
+  openGraph: {
+    title: 'Kigali Shoes Hub',
+    description: 'Shop top quality footwear, sneakers, and formal shoes in Kigali with fast delivery across Rwanda.',
+    url: 'https://www.kigalishoeshub.com',
+    siteName: 'Kigali Shoes Hub',
+    images: [
+      {
+        url: 'https://www.kigalishoeshub.com/logo.png', // Ensure logo.png exists in your /public folder
+        width: 1200,
+        height: 630,
+        alt: 'Kigali Shoes Hub Logo',
+      },
+    ],
+    type: 'website',
+  },
 }

@@ -154,7 +154,7 @@ export default function Storefront() {
       "Nyamagabe",
       "Nyanza",
       "Nyaruguru",
-      "Rruhango",
+      "Ruhango",
     ],
   };
 
@@ -764,7 +764,7 @@ export default function Storefront() {
                       Fast Rwanda Delivery
                     </h4>
                     <p className="text-[10px] text-slate-500">
-                      Same-day in Kigali & 24–48h provinces
+                      Same day in Kigali & 24–48h provinces
                     </p>
                   </div>
                 </div>
@@ -786,7 +786,7 @@ export default function Storefront() {
                       Easy Returns
                     </h4>
                     <p className="text-[10px] text-slate-500">
-                      Hassle-free size exchanges
+                      Hassle free size exchanges
                     </p>
                   </div>
                 </div>
