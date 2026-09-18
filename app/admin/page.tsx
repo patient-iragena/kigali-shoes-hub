@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic'
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -10,7 +11,6 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 interface Shoe {
   id: string;
   created_at?: string;
-
   name: string;
   brand: string;
   price_rwf: number;
@@ -34,6 +34,7 @@ interface Order {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'orders'>('dashboard');
   const [shoes, setShoes] = useState<Shoe[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -61,6 +62,11 @@ export default function AdminDashboard() {
     fetchShoes();
     fetchOrders();
   }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/admin/login');
+  };
 
   const fetchShoes = async () => {
     setLoading(true);
@@ -92,10 +98,8 @@ export default function AdminDashboard() {
 
   // Dynamic Time-Based Metrics
   const now = new Date();
-  
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(now.getDate() - 7);
-
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(now.getDate() - 30);
 
@@ -119,13 +123,13 @@ export default function AdminDashboard() {
       sizeCounts[o.size_selected] = (sizeCounts[o.size_selected] || 0) + 1;
     }
   });
+
   const topDemandedSize = Object.keys(sizeCounts).length > 0
     ? Object.keys(sizeCounts).reduce((a, b) => (sizeCounts[Number(a)] > sizeCounts[Number(b)] ? a : b))
     : 'N/A';
 
   // Most Popular Shoes Calculation
   const shoeSalesMap: { [key: string]: { name: string; count: number; totalRevenue: number } } = {};
-  
   orders.forEach((o) => {
     const key = o.shoe_name || 'Unknown Shoe';
     if (!shoeSalesMap[key]) {
@@ -271,7 +275,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- DELETE ORDER FUNCTION ---
   const handleDeleteOrder = async (orderId: string) => {
     if (confirm('Are you sure you want to delete this order from the pipeline?')) {
       const { error } = await supabase
@@ -299,7 +302,10 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-2 font-bold text-lg">
           <span className="text-yellow-500">⬡</span> Kigali Shoes Hub — Admin Panel
         </div>
-        <button className="flex items-center gap-2 text-sm bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg border border-gray-700 transition">
+        <button 
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-sm bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg border border-gray-700 transition"
+        >
           🔒 Logout
         </button>
       </header>
@@ -378,7 +384,7 @@ export default function AdminDashboard() {
               {/* TOP POPULAR SHOES */}
               <div className="lg:col-span-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                 <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                   Most Popular Shoes
+                  Most Popular Shoes
                 </h3>
                 {popularShoes.length === 0 ? (
                   <p className="text-sm text-gray-400 py-6 text-center">No sales data available yet.</p>
