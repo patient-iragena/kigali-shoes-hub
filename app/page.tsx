@@ -1,5 +1,9 @@
 "use client";
 
+// Force Next.js & Vercel to bypass static page caching on reloads
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import emailjs from "@emailjs/browser";
@@ -35,7 +39,6 @@ const FacebookIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
   </svg>
 );
-
 const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
     <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
@@ -43,7 +46,6 @@ const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
   </svg>
 );
-
 const TikTokIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg
     className={className}
@@ -71,12 +73,10 @@ interface Shoe {
   status?: string;
   available_sizes?: string[];
 }
-
 interface CartItem extends Shoe {
   selectedSize: string;
   quantity: number;
 }
-
 const AVAILABLE_SIZES = Array.from({ length: 41 }, (_, i) => String(20 + i));
 
 export default function Storefront() {
@@ -119,7 +119,6 @@ export default function Storefront() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderReference, setOrderReference] = useState("");
-
   const HELPLINE_NUMBER = "+250781827386";
   const DISPLAY_HELPLINE = "0781827386";
   const OWNER_EMAIL = "patientira79@gmail.com";
@@ -130,7 +129,6 @@ export default function Storefront() {
     instagram: "https://instagram.com/kigali.shoes.hub",
     tiktok: "https://tiktok.com/@kigali.shoes.hub"
   };
-
   const rwandaDistricts: Record<string, string[]> = {
     "Kigali City": ["Gasabo", "Kicukiro", "Nyarugenge"],
     "Eastern Province": [
@@ -351,8 +349,6 @@ export default function Storefront() {
         ? paymentProvider.toUpperCase()
         : "International Order - Payment Pending (to be arranged)";
 
-    // Save the order to Supabase first - this is the source of truth.
-    // One row per cart item, since the `orders` table models a single shoe/size per row.
     const { data: savedOrders, error: ordersError } = await supabase
       .from("orders")
       .insert(
@@ -376,7 +372,6 @@ export default function Storefront() {
     }
 
     const orderIds = savedOrders.map((o) => o.id);
-    // Short human-friendly reference from the first order row
     const reference = orderIds[0] ? orderIds[0].slice(0, 8).toUpperCase() : "";
     setOrderReference(reference);
 
@@ -412,8 +407,6 @@ export default function Storefront() {
       payment_type: String(paymentMethodText),
     };
 
-    // The order is already saved - email notifications are best-effort from here.
-    // A failure here should not make the customer think their order wasn't placed.
     try {
       await emailjs.send(
         "service_84glr5p",
@@ -435,7 +428,6 @@ export default function Storefront() {
       );
     } catch (err: any) {
       console.error("EmailJS Service Notification Failure:", err);
-      // Order is safely in the database even if the email notification failed.
     }
 
     setPaymentStatus("success");
@@ -701,7 +693,7 @@ export default function Storefront() {
           )}
         </header>
 
-        {/* ALWAYS VISIBLE MOBILE SEARCH BAR (Shown right below header on screens smaller than md) */}
+        {/* ALWAYS VISIBLE MOBILE SEARCH BAR */}
         <div className="md:hidden bg-white px-4 py-3 border-b border-slate-200 shadow-xs sticky top-[80px] z-30">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1104,7 +1096,6 @@ export default function Storefront() {
                     <b>Sunday:</b> 10:00 AM – 6:00 PM CAT
                   </p>
                 </div>
-                {/* Social Media Support Links */}
                 <div className="pt-6 border-t border-slate-100 mt-6">
                   <h4 className="font-bold text-xs text-slate-900 mb-3">Follow & Message Us</h4>
                   <div className="flex items-center gap-3">
@@ -1488,6 +1479,7 @@ export default function Storefront() {
             >
               <X className="w-5 h-5" />
             </button>
+
             {paymentStatus === "form" && (
               <form onSubmit={handleCheckoutSubmit} className="space-y-4">
                 <div className="pb-4 border-b border-slate-100 space-y-2">
@@ -1745,6 +1737,7 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
+
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                     Email Address (For Order Receipt)
@@ -1758,6 +1751,7 @@ export default function Storefront() {
                     className="w-full bg-slate-100 border-none rounded-xl text-xs p-2.5 font-medium focus:ring-2 focus:ring-black"
                   />
                 </div>
+
                 <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-1.5 text-xs text-slate-700">
                   <div className="flex justify-between">
                     <span>Items Subtotal ({checkoutItems.length}):</span>
@@ -1774,6 +1768,7 @@ export default function Storefront() {
                     <span>RWF {finalTotalPrice.toLocaleString()}</span>
                   </div>
                 </div>
+
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -1911,7 +1906,6 @@ export default function Storefront() {
             <span className="text-white font-bold text-sm block mb-3">Contact Support</span>
             <p className="text-gray-400">Call / Help Line: {DISPLAY_HELPLINE}</p>
             <p className="text-gray-400">Location: Kigali City, Rwanda</p>
-            {/* Social Media Footer Integration */}
             <div className="pt-2">
               <span className="text-white font-bold text-xs block mb-2">Social Platforms</span>
               <div className="flex items-center gap-2">
