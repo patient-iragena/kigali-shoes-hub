@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import emailjs from "@emailjs/browser";
@@ -34,6 +35,7 @@ const FacebookIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
   </svg>
 );
+
 const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
     <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
@@ -41,6 +43,7 @@ const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
   </svg>
 );
+
 const TikTokIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg
     className={className}
@@ -68,10 +71,12 @@ interface Shoe {
   status?: string;
   available_sizes?: string[];
 }
+
 interface CartItem extends Shoe {
   selectedSize: string;
   quantity: number;
 }
+
 const AVAILABLE_SIZES = Array.from({ length: 41 }, (_, i) => String(20 + i));
 
 export default function Storefront() {
@@ -95,7 +100,6 @@ export default function Storefront() {
   
   // State for Product Image Quick View Modal
   const [previewShoe, setPreviewShoe] = useState<Shoe | null>(null);
-
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 12;
   const [hasMore, setHasMore] = useState(true);
@@ -115,6 +119,7 @@ export default function Storefront() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderReference, setOrderReference] = useState("");
+
   const HELPLINE_NUMBER = "+250781827386";
   const DISPLAY_HELPLINE = "0781827386";
   const OWNER_EMAIL = "patientira79@gmail.com";
@@ -125,6 +130,7 @@ export default function Storefront() {
     instagram: "https://instagram.com/kigali.shoes.hub",
     tiktok: "https://tiktok.com/@kigali.shoes.hub"
   };
+
   const rwandaDistricts: Record<string, string[]> = {
     "Kigali City": ["Gasabo", "Kicukiro", "Nyarugenge"],
     "Eastern Province": [
@@ -382,6 +388,7 @@ export default function Storefront() {
           ).toLocaleString()}`
       )
       .join("\n");
+
     const basePayload = {
       title: `Footwear Order (${checkoutItems.length} items)`,
       name: customerEmail ? customerEmail.split("@")[0] : "Customer",
@@ -430,6 +437,7 @@ export default function Storefront() {
       console.error("EmailJS Service Notification Failure:", err);
       // Order is safely in the database even if the email notification failed.
     }
+
     setPaymentStatus("success");
     setIsSubmitting(false);
   };
@@ -752,6 +760,7 @@ export default function Storefront() {
                 Showing top footwear across Rwanda
               </p>
             </div>
+
             <div className="mb-10 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs">
               <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider mb-4 text-center sm:text-left">
                 Why Shop With Us?
@@ -803,6 +812,7 @@ export default function Storefront() {
                 </div>
               </div>
             </div>
+
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {debouncedSearch
@@ -813,6 +823,7 @@ export default function Storefront() {
                 {shoes.length} Footwear Available
               </span>
             </div>
+
             {loading && shoes.length === 0 ? (
               <div className="py-24 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
                 <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
@@ -1184,13 +1195,11 @@ export default function Storefront() {
                   RWF {previewShoe.price_rwf?.toLocaleString()}
                 </p>
               </div>
-
               {previewShoe.description && (
                 <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
                   {previewShoe.description}
                 </p>
               )}
-
               {previewShoe.available_sizes && previewShoe.available_sizes.length > 0 && (
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1.5">
@@ -1208,7 +1217,6 @@ export default function Storefront() {
                   </div>
                 </div>
               )}
-
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={() => {
@@ -1509,12 +1517,14 @@ export default function Storefront() {
                     ))}
                   </div>
                 </div>
+
                 {errorMessage && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{errorMessage}</span>
                   </div>
                 )}
+
                 {checkoutItems.length === 1 && (
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
@@ -1546,6 +1556,7 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
+
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                     Delivery Destination
@@ -1575,6 +1586,7 @@ export default function Storefront() {
                     </button>
                   </div>
                 </div>
+
                 {locationType === "rwanda" ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
@@ -1775,6 +1787,7 @@ export default function Storefront() {
                 </button>
               </form>
             )}
+
             {paymentStatus === "processing" && (
               <div className="py-12 text-center space-y-4">
                 <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -1788,6 +1801,7 @@ export default function Storefront() {
                 </p>
               </div>
             )}
+
             {paymentStatus === "error" && (
               <div className="py-8 text-center space-y-4">
                 <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
@@ -1805,6 +1819,7 @@ export default function Storefront() {
                 </button>
               </div>
             )}
+
             {paymentStatus === "success" && (
               <div className="py-8 text-center space-y-4">
                 <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
