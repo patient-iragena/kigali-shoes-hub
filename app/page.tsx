@@ -1,9 +1,4 @@
 "use client";
-
-// Force Next.js & Vercel to bypass static page caching on reloads
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import emailjs from "@emailjs/browser";
@@ -93,6 +88,7 @@ export default function Storefront() {
   >("home");
   const [wishlist, setWishlist] = useState<Shoe[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [userSession, setUserSession] = useState<any>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -162,6 +158,43 @@ export default function Storefront() {
     ],
   };
 
+  // Auth & Cart State Persistence Sync
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserSession(session);
+      if (session?.user) {
+        fetchUserCart(session.user.id);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setUserSession(session);
+      if (session?.user) {
+        fetchUserCart(session.user.id);
+      } else {
+        setCart([]); // Reset state for guests
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function fetchUserCart(userId: string) {
+    const { data, error } = await supabase
+      .from("cart_items")
+      .select("*, shoes(*)")
+      .eq("user_id", userId);
+
+    if (!error && data) {
+      const formattedCart: CartItem[] = data.map((item: any) => ({
+        ...item.shoes,
+        selectedSize: String(item.size),
+        quantity: item.quantity,
+      }));
+      setCart(formattedCart);
+    }
+  }
+
   // Debounce search query input (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -230,43 +263,85 @@ export default function Storefront() {
     );
   };
 
-  const addToCart = (shoe: Shoe, size = shoeSize) => {
+  const addToCart = async (shoe: Shoe, size = shoeSize) => {
     const defaultSize = shoe.available_sizes && shoe.available_sizes.length > 0 
       ? shoe.available_sizes[0] 
       : size;
-    setCart((prev) => {
-      const existing = prev.find(
-        (item) => item.id === shoe.id && item.selectedSize === defaultSize
-      );
-      if (existing) {
-        return prev.map((item) =>
-          item.id === shoe.id && item.selectedSize === defaultSize
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+
+    if (userSession?.user) {
+      // Logged-in Google User: Save to Supabase
+      await supabase.from("cart_items").upsert({
+        user_id: userSession.user.id,
+        shoe_id: shoe.id,
+        size: parseInt(defaultSize, 10),
+        quantity: 1,
+      });
+      fetchUserCart(userSession.user.id);
+    } else {
+      // Guest User: React State only (disappears on refresh)
+      setCart((prev) => {
+        const existing = prev.find(
+          (item) => item.id === shoe.id && item.selectedSize === defaultSize
         );
+        if (existing) {
+          return prev.map((item) =>
+            item.id === shoe.id && item.selectedSize === defaultSize
+              ? { ...item, quantity: item.quantity + 1 }
+              : item
+          );
+        }
+        return [...prev, { ...shoe, selectedSize: defaultSize, quantity: 1 }];
+      });
+    }
+  };
+
+  const updateQuantity = async (id: string, size: string, delta: number) => {
+    if (userSession?.user) {
+      const currentItem = cart.find(item => item.id === id && item.selectedSize === size);
+      if (currentItem) {
+        const newQty = currentItem.quantity + delta;
+        if (newQty > 0) {
+          await supabase
+            .from("cart_items")
+            .update({ quantity: newQty })
+            .eq("user_id", userSession.user.id)
+            .eq("shoe_id", id)
+            .eq("size", parseInt(size, 10));
+        } else {
+          await removeFromCart(id, size);
+          return;
+        }
+        fetchUserCart(userSession.user.id);
       }
-      return [...prev, { ...shoe, selectedSize: defaultSize, quantity: 1 }];
-    });
+    } else {
+      setCart((prev) =>
+        prev
+          .map((item) => {
+            if (item.id === id && item.selectedSize === size) {
+              const newQty = item.quantity + delta;
+              return newQty > 0 ? { ...item, quantity: newQty } : null;
+            }
+            return item;
+          })
+          .filter(Boolean) as CartItem[]
+      );
+    }
   };
 
-  const updateQuantity = (id: string, size: string, delta: number) => {
-    setCart((prev) =>
-      prev
-        .map((item) => {
-          if (item.id === id && item.selectedSize === size) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean) as CartItem[]
-    );
-  };
-
-  const removeFromCart = (id: string, size: string) => {
-    setCart((prev) =>
-      prev.filter((item) => !(item.id === id && item.selectedSize === size))
-    );
+  const removeFromCart = async (id: string, size: string) => {
+    if (userSession?.user) {
+      await supabase
+        .from("cart_items")
+        .delete()
+        .eq("user_id", userSession.user.id)
+        .eq("shoe_id", id)
+        .eq("size", parseInt(size, 10));
+      fetchUserCart(userSession.user.id);
+    } else {
+      setCart((prev) =>
+        prev.filter((item) => !(item.id === id && item.selectedSize === size))
+      );
+    }
   };
 
   const cartTotal = cart.reduce(
@@ -371,6 +446,11 @@ export default function Storefront() {
       return;
     }
 
+    // Clear user cart from database upon order placement if logged in
+    if (userSession?.user) {
+      await supabase.from("cart_items").delete().eq("user_id", userSession.user.id);
+    }
+
     const orderIds = savedOrders.map((o) => o.id);
     const reference = orderIds[0] ? orderIds[0].slice(0, 8).toUpperCase() : "";
     setOrderReference(reference);
@@ -470,7 +550,7 @@ export default function Storefront() {
                 className="hover:text-white font-semibold flex items-center gap-1.5 transition"
               >
                 <User className="w-3.5 h-3.5 text-white" />
-                <span>Customer Account</span>
+                <span>{userSession?.user ? "Account Active" : "Customer Account"}</span>
               </button>
             </div>
           </div>
@@ -752,7 +832,6 @@ export default function Storefront() {
                 Showing top footwear across Rwanda
               </p>
             </div>
-
             <div className="mb-10 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs">
               <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider mb-4 text-center sm:text-left">
                 Why Shop With Us?
@@ -804,7 +883,6 @@ export default function Storefront() {
                 </div>
               </div>
             </div>
-
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {debouncedSearch
@@ -815,7 +893,6 @@ export default function Storefront() {
                 {shoes.length} Footwear Available
               </span>
             </div>
-
             {loading && shoes.length === 0 ? (
               <div className="py-24 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
                 <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
@@ -1459,12 +1536,21 @@ export default function Storefront() {
             <p className="text-xs text-slate-500 mb-6">
               Sign in to manage your footwear orders and track delivery status.
             </p>
-            <button
-              onClick={handleGoogleSignIn}
-              className="w-full flex items-center justify-center gap-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 py-3.5 rounded-2xl text-xs font-bold text-slate-800 transition"
-            >
-              <Globe className="w-4 h-4 text-blue-600" /> Continue with Google
-            </button>
+            {userSession?.user ? (
+              <button
+                onClick={() => supabase.auth.signOut()}
+                className="w-full flex items-center justify-center gap-3 bg-red-50 hover:bg-red-100 border border-red-200 py-3.5 rounded-2xl text-xs font-bold text-red-600 transition"
+              >
+                Sign Out ({userSession.user.email})
+              </button>
+            ) : (
+              <button
+                onClick={handleGoogleSignIn}
+                className="w-full flex items-center justify-center gap-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 py-3.5 rounded-2xl text-xs font-bold text-slate-800 transition"
+              >
+                <Globe className="w-4 h-4 text-blue-600" /> Continue with Google
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1479,7 +1565,6 @@ export default function Storefront() {
             >
               <X className="w-5 h-5" />
             </button>
-
             {paymentStatus === "form" && (
               <form onSubmit={handleCheckoutSubmit} className="space-y-4">
                 <div className="pb-4 border-b border-slate-100 space-y-2">
@@ -1509,14 +1594,12 @@ export default function Storefront() {
                     ))}
                   </div>
                 </div>
-
                 {errorMessage && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{errorMessage}</span>
                   </div>
                 )}
-
                 {checkoutItems.length === 1 && (
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
@@ -1548,7 +1631,6 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
-
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                     Delivery Destination
@@ -1578,7 +1660,6 @@ export default function Storefront() {
                     </button>
                   </div>
                 </div>
-
                 {locationType === "rwanda" ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
@@ -1737,7 +1818,6 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
-
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                     Email Address (For Order Receipt)
@@ -1751,7 +1831,6 @@ export default function Storefront() {
                     className="w-full bg-slate-100 border-none rounded-xl text-xs p-2.5 font-medium focus:ring-2 focus:ring-black"
                   />
                 </div>
-
                 <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-1.5 text-xs text-slate-700">
                   <div className="flex justify-between">
                     <span>Items Subtotal ({checkoutItems.length}):</span>
@@ -1768,7 +1847,6 @@ export default function Storefront() {
                     <span>RWF {finalTotalPrice.toLocaleString()}</span>
                   </div>
                 </div>
-
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -1782,7 +1860,6 @@ export default function Storefront() {
                 </button>
               </form>
             )}
-
             {paymentStatus === "processing" && (
               <div className="py-12 text-center space-y-4">
                 <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -1796,7 +1873,6 @@ export default function Storefront() {
                 </p>
               </div>
             )}
-
             {paymentStatus === "error" && (
               <div className="py-8 text-center space-y-4">
                 <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
@@ -1814,7 +1890,6 @@ export default function Storefront() {
                 </button>
               </div>
             )}
-
             {paymentStatus === "success" && (
               <div className="py-8 text-center space-y-4">
                 <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
