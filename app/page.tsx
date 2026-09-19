@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import emailjs from "@emailjs/browser";
 import { supabase } from "@/lib/supabase";
+import { User as SupabaseUser } from "@supabase/supabase-js";
 import {
   Search,
   ShoppingBag,
@@ -25,7 +26,8 @@ import {
   AlertCircle,
   Headphones,
   Minus,
-  ShoppingBasket
+  ShoppingBasket,
+  LogOut
 } from "lucide-react";
 
 // Social Media Custom SVG Icons
@@ -68,16 +70,19 @@ interface Shoe {
   status?: string;
   available_sizes?: string[];
 }
+
 interface CartItem extends Shoe {
   selectedSize: string;
   quantity: number;
 }
+
 const AVAILABLE_SIZES = Array.from({ length: 41 }, (_, i) => String(20 + i));
 
 export default function Storefront() {
   // ==========================================
   // STATE MANAGEMENT
   // ==========================================
+  const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [shoes, setShoes] = useState<Shoe[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -88,7 +93,6 @@ export default function Storefront() {
   >("home");
   const [wishlist, setWishlist] = useState<Shoe[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [userSession, setUserSession] = useState<any>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -125,6 +129,7 @@ export default function Storefront() {
     instagram: "https://instagram.com/kigali.shoes.hub",
     tiktok: "https://tiktok.com/@kigali.shoes.hub"
   };
+
   const rwandaDistricts: Record<string, string[]> = {
     "Kigali City": ["Gasabo", "Kicukiro", "Nyarugenge"],
     "Eastern Province": [
@@ -154,46 +159,93 @@ export default function Storefront() {
       "Nyamagabe",
       "Nyanza",
       "Nyaruguru",
-      "Ruhango",
+      "Rruhango",
     ],
   };
 
-  // Auth & Cart State Persistence Sync
+  // --------------------------------------------------
+  // AUTHENTICATION & USER PERSISTENCE SETUP
+  // --------------------------------------------------
   useEffect(() => {
+    // 1. Fetch current session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserSession(session);
-      if (session?.user) {
-        fetchUserCart(session.user.id);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUserSession(session);
-      if (session?.user) {
-        fetchUserCart(session.user.id);
+      const user = session?.user ?? null;
+      setCurrentUser(user);
+      if (user) {
+        setCustomerEmail(user.email || "");
+        syncUserData(user.id);
       } else {
-        setCart([]); // Reset state for guests
+        loadFromLocalStorage();
       }
     });
 
-    return () => subscription.unsubscribe();
+    // 2. Listen for auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user ?? null;
+      setCurrentUser(user);
+      if (user) {
+        setCustomerEmail(user.email || "");
+        syncUserData(user.id);
+      } else {
+        loadFromLocalStorage();
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  async function fetchUserCart(userId: string) {
-    const { data, error } = await supabase
-      .from("cart_items")
-      .select("*, shoes(*)")
-      .eq("user_id", userId);
-
-    if (!error && data) {
-      const formattedCart: CartItem[] = data.map((item: any) => ({
-        ...item.shoes,
-        selectedSize: String(item.size),
-        quantity: item.quantity,
-      }));
-      setCart(formattedCart);
+  const loadFromLocalStorage = () => {
+    try {
+      const savedCart = localStorage.getItem("ksh_cart");
+      const savedWishlist = localStorage.getItem("ksh_wishlist");
+      if (savedCart) setCart(JSON.parse(savedCart));
+      if (savedWishlist) setWishlist(JSON.parse(savedWishlist));
+    } catch (e) {
+      console.error("Failed loading local data", e);
     }
-  }
+  };
+
+  const syncUserData = async (userId: string) => {
+    try {
+      // Fetch Wishlist from Supabase
+      const { data: dbWishlist } = await supabase
+        .from("wishlist_items")
+        .select("shoe_id, shoes(*)")
+        .eq("user_id", userId);
+
+      if (dbWishlist) {
+        const fetchedWishlist: Shoe[] = dbWishlist
+          .map((item: any) => item.shoes)
+          .filter(Boolean);
+        setWishlist(fetchedWishlist);
+      }
+
+      // Fetch Cart from Supabase
+      const { data: dbCart } = await supabase
+        .from("cart_items")
+        .select("shoe_id, selected_size, quantity, shoes(*)")
+        .eq("user_id", userId);
+
+      if (dbCart) {
+        const fetchedCart: CartItem[] = dbCart
+          .map((item: any) =>
+            item.shoes
+              ? {
+                  ...item.shoes,
+                  selectedSize: item.selected_size,
+                  quantity: item.quantity,
+                }
+              : null
+          )
+          .filter(Boolean);
+        setCart(fetchedCart);
+      }
+    } catch (err) {
+      console.error("Error syncing database user cart/wishlist:", err);
+    }
+  };
 
   // Debounce search query input (300ms)
   useEffect(() => {
@@ -213,10 +265,8 @@ export default function Storefront() {
     const currentPage = isInitial ? 0 : page;
     const from = currentPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    let query = supabase
-      .from("shoes")
-      .select("*", { count: "exact" });
-    
+    let query = supabase.from("shoes").select("*", { count: "exact" });
+
     // Handle Search Filter
     if (debouncedSearch.trim()) {
       query = query.or(`name.ilike.%${debouncedSearch.trim()}%,brand.ilike.%${debouncedSearch.trim()}%`);
@@ -255,92 +305,132 @@ export default function Storefront() {
     setLoading(false);
   }
 
-  const toggleWishlist = (shoe: Shoe) => {
-    setWishlist((prev) =>
-      prev.some((item) => item.id === shoe.id)
-        ? prev.filter((item) => item.id !== shoe.id)
-        : [...prev, shoe]
-    );
-  };
+  // WISHLIST TOGGLE (DB + LOCAL)
+  const toggleWishlist = async (shoe: Shoe) => {
+    const isWishlisted = wishlist.some((item) => item.id === shoe.id);
+    const updatedWishlist = isWishlisted
+      ? wishlist.filter((item) => item.id !== shoe.id)
+      : [...wishlist, shoe];
 
-  const addToCart = async (shoe: Shoe, size = shoeSize) => {
-    const defaultSize = shoe.available_sizes && shoe.available_sizes.length > 0 
-      ? shoe.available_sizes[0] 
-      : size;
+    setWishlist(updatedWishlist);
 
-    if (userSession?.user) {
-      // Logged-in Google User: Save to Supabase
-      await supabase.from("cart_items").upsert({
-        user_id: userSession.user.id,
-        shoe_id: shoe.id,
-        size: parseInt(defaultSize, 10),
-        quantity: 1,
-      });
-      fetchUserCart(userSession.user.id);
-    } else {
-      // Guest User: React State only (disappears on refresh)
-      setCart((prev) => {
-        const existing = prev.find(
-          (item) => item.id === shoe.id && item.selectedSize === defaultSize
-        );
-        if (existing) {
-          return prev.map((item) =>
-            item.id === shoe.id && item.selectedSize === defaultSize
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          );
-        }
-        return [...prev, { ...shoe, selectedSize: defaultSize, quantity: 1 }];
-      });
-    }
-  };
-
-  const updateQuantity = async (id: string, size: string, delta: number) => {
-    if (userSession?.user) {
-      const currentItem = cart.find(item => item.id === id && item.selectedSize === size);
-      if (currentItem) {
-        const newQty = currentItem.quantity + delta;
-        if (newQty > 0) {
-          await supabase
-            .from("cart_items")
-            .update({ quantity: newQty })
-            .eq("user_id", userSession.user.id)
-            .eq("shoe_id", id)
-            .eq("size", parseInt(size, 10));
-        } else {
-          await removeFromCart(id, size);
-          return;
-        }
-        fetchUserCart(userSession.user.id);
+    if (currentUser) {
+      if (isWishlisted) {
+        await supabase
+          .from("wishlist_items")
+          .delete()
+          .eq("user_id", currentUser.id)
+          .eq("shoe_id", shoe.id);
+      } else {
+        await supabase.from("wishlist_items").insert({
+          user_id: currentUser.id,
+          shoe_id: shoe.id,
+        });
       }
     } else {
-      setCart((prev) =>
-        prev
-          .map((item) => {
-            if (item.id === id && item.selectedSize === size) {
-              const newQty = item.quantity + delta;
-              return newQty > 0 ? { ...item, quantity: newQty } : null;
-            }
-            return item;
-          })
-          .filter(Boolean) as CartItem[]
-      );
+      localStorage.setItem("ksh_wishlist", JSON.stringify(updatedWishlist));
     }
   };
 
+  // ADD TO CART (DB + LOCAL)
+  const addToCart = async (shoe: Shoe, size = shoeSize) => {
+    const defaultSize =
+      shoe.available_sizes && shoe.available_sizes.length > 0
+        ? shoe.available_sizes[0]
+        : size;
+
+    let updatedCart: CartItem[] = [];
+    const existingIndex = cart.findIndex(
+      (item) => item.id === shoe.id && item.selectedSize === defaultSize
+    );
+
+    if (existingIndex > -1) {
+      updatedCart = cart.map((item, idx) =>
+        idx === existingIndex
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      );
+    } else {
+      updatedCart = [...cart, { ...shoe, selectedSize: defaultSize, quantity: 1 }];
+    }
+
+    setCart(updatedCart);
+
+    if (currentUser) {
+      const newQty = existingIndex > -1 ? cart[existingIndex].quantity + 1 : 1;
+      await supabase.from("cart_items").upsert(
+        {
+          user_id: currentUser.id,
+          shoe_id: shoe.id,
+          selected_size: defaultSize,
+          quantity: newQty,
+        },
+        { onConflict: "user_id, shoe_id, selected_size" }
+      );
+    } else {
+      localStorage.setItem("ksh_cart", JSON.stringify(updatedCart));
+    }
+  };
+
+  // UPDATE QUANTITY (DB + LOCAL)
+  const updateQuantity = async (id: string, size: string, delta: number) => {
+    const itemToUpdate = cart.find(
+      (item) => item.id === id && item.selectedSize === size
+    );
+    if (!itemToUpdate) return;
+
+    const newQty = itemToUpdate.quantity + delta;
+
+    if (newQty <= 0) {
+      removeFromCart(id, size);
+      return;
+    }
+
+    const updatedCart = cart.map((item) =>
+      item.id === id && item.selectedSize === size
+        ? { ...item, quantity: newQty }
+        : item
+    );
+
+    setCart(updatedCart);
+
+    if (currentUser) {
+      await supabase
+        .from("cart_items")
+        .update({ quantity: newQty })
+        .eq("user_id", currentUser.id)
+        .eq("shoe_id", id)
+        .eq("selected_size", size);
+    } else {
+      localStorage.setItem("ksh_cart", JSON.stringify(updatedCart));
+    }
+  };
+
+  // REMOVE FROM CART (DB + LOCAL)
   const removeFromCart = async (id: string, size: string) => {
-    if (userSession?.user) {
+    const updatedCart = cart.filter(
+      (item) => !(item.id === id && item.selectedSize === size)
+    );
+    setCart(updatedCart);
+
+    if (currentUser) {
       await supabase
         .from("cart_items")
         .delete()
-        .eq("user_id", userSession.user.id)
+        .eq("user_id", currentUser.id)
         .eq("shoe_id", id)
-        .eq("size", parseInt(size, 10));
-      fetchUserCart(userSession.user.id);
+        .eq("selected_size", size);
     } else {
-      setCart((prev) =>
-        prev.filter((item) => !(item.id === id && item.selectedSize === size))
-      );
+      localStorage.setItem("ksh_cart", JSON.stringify(updatedCart));
+    }
+  };
+
+  const clearCart = async () => {
+    setCart([]);
+    if (currentUser) {
+      await supabase.from("cart_items").delete().eq("user_id", currentUser.id);
+    } else {
+      localStorage.removeItem("ksh_cart");
     }
   };
 
@@ -397,10 +487,21 @@ export default function Storefront() {
     }
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+    setWishlist([]);
+    setCart([]);
+    localStorage.removeItem("ksh_cart");
+    localStorage.removeItem("ksh_wishlist");
+    setIsAuthModalOpen(false);
+  };
+
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     setErrorMessage("");
+
     if (locationType === "rwanda") {
       const cleanedPhone = customerPhone.trim();
       const rwandaPhoneRegex = /^(78|79|72|73)\d{7}$/;
@@ -411,6 +512,7 @@ export default function Storefront() {
         return;
       }
     }
+
     setIsSubmitting(true);
     setPaymentStatus("processing");
     const fullPhoneNumber =
@@ -424,6 +526,7 @@ export default function Storefront() {
         ? paymentProvider.toUpperCase()
         : "International Order - Payment Pending (to be arranged)";
 
+    // Save order to Supabase
     const { data: savedOrders, error: ordersError } = await supabase
       .from("orders")
       .insert(
@@ -432,6 +535,7 @@ export default function Storefront() {
           size: parseInt(item.selectedSize, 10),
           customer_phone: fullPhoneNumber,
           amount_rwf: item.price_rwf * item.quantity,
+          user_id: currentUser ? currentUser.id : null,
         }))
       )
       .select("id");
@@ -444,11 +548,6 @@ export default function Storefront() {
       setPaymentStatus("error");
       setIsSubmitting(false);
       return;
-    }
-
-    // Clear user cart from database upon order placement if logged in
-    if (userSession?.user) {
-      await supabase.from("cart_items").delete().eq("user_id", userSession.user.id);
     }
 
     const orderIds = savedOrders.map((o) => o.id);
@@ -491,27 +590,22 @@ export default function Storefront() {
       await emailjs.send(
         "service_84glr5p",
         "template_wu0bkeb",
-        {
-          ...basePayload,
-          to_email: OWNER_EMAIL,
-        },
+        { ...basePayload, to_email: OWNER_EMAIL },
         "83vF3uD9oYthKT_vR"
       );
       await emailjs.send(
         "service_84glr5p",
         "template_oschd8a",
-        {
-          ...basePayload,
-          to_email: customerEmail,
-        },
+        { ...basePayload, to_email: customerEmail },
         "83vF3uD9oYthKT_vR"
       );
     } catch (err: any) {
-      console.error("EmailJS Service Notification Failure:", err);
+      console.error("EmailJS Notification Failure:", err);
     }
 
     setPaymentStatus("success");
     setIsSubmitting(false);
+    clearCart();
   };
 
   const closeModal = () => {
@@ -521,12 +615,10 @@ export default function Storefront() {
     setErrorMessage("");
     setIsSubmitting(false);
     setCustomerPhone("");
-    setCustomerEmail("");
     setLocalAddress("");
     setAbroadAddress("");
     setCountry("");
     setOrderReference("");
-    setCart([]);
   };
 
   return (
@@ -550,7 +642,7 @@ export default function Storefront() {
                 className="hover:text-white font-semibold flex items-center gap-1.5 transition"
               >
                 <User className="w-3.5 h-3.5 text-white" />
-                <span>{userSession?.user ? "Account Active" : "Customer Account"}</span>
+                <span>{currentUser ? currentUser.email?.split("@")[0] : "Customer Account"}</span>
               </button>
             </div>
           </div>
@@ -645,7 +737,7 @@ export default function Storefront() {
               </button>
             </nav>
 
-            {/* Desktop Real-time Search Input */}
+            {/* Desktop Search Input */}
             <div className="hidden md:flex flex-1 max-w-xs relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -773,7 +865,7 @@ export default function Storefront() {
           )}
         </header>
 
-        {/* ALWAYS VISIBLE MOBILE SEARCH BAR */}
+        {/* MOBILE SEARCH BAR */}
         <div className="md:hidden bg-white px-4 py-3 border-b border-slate-200 shadow-xs sticky top-[80px] z-30">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -832,6 +924,7 @@ export default function Storefront() {
                 Showing top footwear across Rwanda
               </p>
             </div>
+
             <div className="mb-10 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs">
               <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider mb-4 text-center sm:text-left">
                 Why Shop With Us?
@@ -883,6 +976,7 @@ export default function Storefront() {
                 </div>
               </div>
             </div>
+
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {debouncedSearch
@@ -893,6 +987,7 @@ export default function Storefront() {
                 {shoes.length} Footwear Available
               </span>
             </div>
+
             {loading && shoes.length === 0 ? (
               <div className="py-24 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
                 <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
@@ -1173,6 +1268,7 @@ export default function Storefront() {
                     <b>Sunday:</b> 10:00 AM – 6:00 PM CAT
                   </p>
                 </div>
+                {/* Social Media Support Links */}
                 <div className="pt-6 border-t border-slate-100 mt-6">
                   <h4 className="font-bold text-xs text-slate-900 mb-3">Follow & Message Us</h4>
                   <div className="flex items-center gap-3">
@@ -1311,7 +1407,7 @@ export default function Storefront() {
         </div>
       )}
 
-      {/* SHOPPING BAG SLIDE-OVER DRAWER */}
+      {/* SHOPPING BAG DRAWER */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden animate-fadeIn">
           <div
@@ -1445,7 +1541,7 @@ export default function Storefront() {
         </div>
       )}
 
-      {/* Wishlist Drawer */}
+      {/* WISHLIST DRAWER */}
       {isWishlistOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs">
           <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col justify-between p-6">
@@ -1512,7 +1608,7 @@ export default function Storefront() {
         </div>
       )}
 
-      {/* Account Login Modal */}
+      {/* ACCOUNT LOGIN & USER PROFILE MODAL */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl relative text-center">
@@ -1530,32 +1626,46 @@ export default function Storefront() {
               priority
               className="w-12 h-12 mx-auto mb-4 object-contain"
             />
-            <h3 className="font-extrabold text-lg text-slate-900 mb-1">
-              Customer Account Access
-            </h3>
-            <p className="text-xs text-slate-500 mb-6">
-              Sign in to manage your footwear orders and track delivery status.
-            </p>
-            {userSession?.user ? (
-              <button
-                onClick={() => supabase.auth.signOut()}
-                className="w-full flex items-center justify-center gap-3 bg-red-50 hover:bg-red-100 border border-red-200 py-3.5 rounded-2xl text-xs font-bold text-red-600 transition"
-              >
-                Sign Out ({userSession.user.email})
-              </button>
+            {currentUser ? (
+              <div>
+                <h3 className="font-extrabold text-lg text-slate-900 mb-1">
+                  Welcome Back!
+                </h3>
+                <p className="text-xs text-slate-500 mb-6 font-medium">
+                  Signed in as <br />
+                  <strong className="text-slate-900 font-bold">{currentUser.email}</strong>
+                </p>
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-600 mb-6 leading-relaxed">
+                  Your cart and wishlist are synced across all your devices.
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-3.5 rounded-2xl text-xs transition"
+                >
+                  <LogOut className="w-4 h-4" /> Sign Out
+                </button>
+              </div>
             ) : (
-              <button
-                onClick={handleGoogleSignIn}
-                className="w-full flex items-center justify-center gap-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 py-3.5 rounded-2xl text-xs font-bold text-slate-800 transition"
-              >
-                <Globe className="w-4 h-4 text-blue-600" /> Continue with Google
-              </button>
+              <div>
+                <h3 className="font-extrabold text-lg text-slate-900 mb-1">
+                  Customer Account Access
+                </h3>
+                <p className="text-xs text-slate-500 mb-6">
+                  Sign in to keep your bag and wishlist across devices and track orders.
+                </p>
+                <button
+                  onClick={handleGoogleSignIn}
+                  className="w-full flex items-center justify-center gap-3 bg-slate-100 hover:bg-slate-200 border border-slate-200 py-3.5 rounded-2xl text-xs font-bold text-slate-800 transition"
+                >
+                  <Globe className="w-4 h-4 text-blue-600" /> Continue with Google
+                </button>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Interactive Checkout Modal */}
+      {/* INTERACTIVE CHECKOUT MODAL */}
       {isCheckoutOpen && checkoutItems.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
@@ -1594,12 +1704,14 @@ export default function Storefront() {
                     ))}
                   </div>
                 </div>
+
                 {errorMessage && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{errorMessage}</span>
                   </div>
                 )}
+
                 {checkoutItems.length === 1 && (
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
@@ -1631,6 +1743,7 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
+
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                     Delivery Destination
@@ -1660,6 +1773,7 @@ export default function Storefront() {
                     </button>
                   </div>
                 </div>
+
                 {locationType === "rwanda" ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
@@ -1818,6 +1932,7 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
+
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                     Email Address (For Order Receipt)
@@ -1831,6 +1946,7 @@ export default function Storefront() {
                     className="w-full bg-slate-100 border-none rounded-xl text-xs p-2.5 font-medium focus:ring-2 focus:ring-black"
                   />
                 </div>
+
                 <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-1.5 text-xs text-slate-700">
                   <div className="flex justify-between">
                     <span>Items Subtotal ({checkoutItems.length}):</span>
@@ -1847,6 +1963,7 @@ export default function Storefront() {
                     <span>RWF {finalTotalPrice.toLocaleString()}</span>
                   </div>
                 </div>
+
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -1860,6 +1977,7 @@ export default function Storefront() {
                 </button>
               </form>
             )}
+
             {paymentStatus === "processing" && (
               <div className="py-12 text-center space-y-4">
                 <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -1873,6 +1991,7 @@ export default function Storefront() {
                 </p>
               </div>
             )}
+
             {paymentStatus === "error" && (
               <div className="py-8 text-center space-y-4">
                 <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
@@ -1890,6 +2009,7 @@ export default function Storefront() {
                 </button>
               </div>
             )}
+
             {paymentStatus === "success" && (
               <div className="py-8 text-center space-y-4">
                 <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
