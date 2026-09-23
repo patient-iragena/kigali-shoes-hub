@@ -70,12 +70,10 @@ interface Shoe {
   status?: string;
   available_sizes?: string[];
 }
-
 interface CartItem extends Shoe {
   selectedSize: string;
   quantity: number;
 }
-
 const AVAILABLE_SIZES = Array.from({ length: 41 }, (_, i) => String(20 + i));
 
 export default function Storefront() {
@@ -129,7 +127,6 @@ export default function Storefront() {
     instagram: "https://instagram.com/kigali.shoes.hub",
     tiktok: "https://tiktok.com/@kigali.shoes.hub"
   };
-
   const rwandaDistricts: Record<string, string[]> = {
     "Kigali City": ["Gasabo", "Kicukiro", "Nyarugenge"],
     "Eastern Province": [
@@ -167,7 +164,6 @@ export default function Storefront() {
   // AUTHENTICATION & USER PERSISTENCE SETUP
   // --------------------------------------------------
   useEffect(() => {
-    // 1. Fetch current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       const user = session?.user ?? null;
       setCurrentUser(user);
@@ -179,7 +175,6 @@ export default function Storefront() {
       }
     });
 
-    // 2. Listen for auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       const user = session?.user ?? null;
       setCurrentUser(user);
@@ -209,12 +204,10 @@ export default function Storefront() {
 
   const syncUserData = async (userId: string) => {
     try {
-      // Fetch Wishlist from Supabase
       const { data: dbWishlist } = await supabase
         .from("wishlist_items")
         .select("shoe_id, shoes(*)")
         .eq("user_id", userId);
-
       if (dbWishlist) {
         const fetchedWishlist: Shoe[] = dbWishlist
           .map((item: any) => item.shoes)
@@ -222,12 +215,10 @@ export default function Storefront() {
         setWishlist(fetchedWishlist);
       }
 
-      // Fetch Cart from Supabase
       const { data: dbCart } = await supabase
         .from("cart_items")
         .select("shoe_id, selected_size, quantity, shoes(*)")
         .eq("user_id", userId);
-
       if (dbCart) {
         const fetchedCart: CartItem[] = dbCart
           .map((item: any) =>
@@ -247,7 +238,6 @@ export default function Storefront() {
     }
   };
 
-  // Debounce search query input (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
@@ -255,7 +245,6 @@ export default function Storefront() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch shoes directly from Supabase whenever debounced search or category changes
   useEffect(() => {
     fetchShoes(true);
   }, [debouncedSearch, selectedCategory]);
@@ -267,11 +256,10 @@ export default function Storefront() {
     const to = from + PAGE_SIZE - 1;
     let query = supabase.from("shoes").select("*", { count: "exact" });
 
-    // Handle Search Filter
     if (debouncedSearch.trim()) {
       query = query.or(`name.ilike.%${debouncedSearch.trim()}%,brand.ilike.%${debouncedSearch.trim()}%`);
     }
-    // Handle Specific Category & Special Filter Buttons
+
     if (selectedCategory === "Popular") {
       query = query.eq("is_featured", true).order("created_at", { ascending: false });
     } else if (selectedCategory === "Lowest price") {
@@ -285,6 +273,7 @@ export default function Storefront() {
     } else {
       query = query.order("created_at", { ascending: false });
     }
+
     const { data, count, error } = await query.range(from, to);
     if (error) {
       console.error("Error fetching footwear from Supabase:", error.message);
@@ -305,15 +294,12 @@ export default function Storefront() {
     setLoading(false);
   }
 
-  // WISHLIST TOGGLE (DB + LOCAL)
   const toggleWishlist = async (shoe: Shoe) => {
     const isWishlisted = wishlist.some((item) => item.id === shoe.id);
     const updatedWishlist = isWishlisted
       ? wishlist.filter((item) => item.id !== shoe.id)
       : [...wishlist, shoe];
-
     setWishlist(updatedWishlist);
-
     if (currentUser) {
       if (isWishlisted) {
         await supabase
@@ -332,18 +318,15 @@ export default function Storefront() {
     }
   };
 
-  // ADD TO CART (DB + LOCAL)
   const addToCart = async (shoe: Shoe, size = shoeSize) => {
     const defaultSize =
       shoe.available_sizes && shoe.available_sizes.length > 0
         ? shoe.available_sizes[0]
         : size;
-
     let updatedCart: CartItem[] = [];
     const existingIndex = cart.findIndex(
       (item) => item.id === shoe.id && item.selectedSize === defaultSize
     );
-
     if (existingIndex > -1) {
       updatedCart = cart.map((item, idx) =>
         idx === existingIndex
@@ -353,9 +336,7 @@ export default function Storefront() {
     } else {
       updatedCart = [...cart, { ...shoe, selectedSize: defaultSize, quantity: 1 }];
     }
-
     setCart(updatedCart);
-
     if (currentUser) {
       const newQty = existingIndex > -1 ? cart[existingIndex].quantity + 1 : 1;
       await supabase.from("cart_items").upsert(
@@ -372,28 +353,22 @@ export default function Storefront() {
     }
   };
 
-  // UPDATE QUANTITY (DB + LOCAL)
   const updateQuantity = async (id: string, size: string, delta: number) => {
     const itemToUpdate = cart.find(
       (item) => item.id === id && item.selectedSize === size
     );
     if (!itemToUpdate) return;
-
     const newQty = itemToUpdate.quantity + delta;
-
     if (newQty <= 0) {
       removeFromCart(id, size);
       return;
     }
-
     const updatedCart = cart.map((item) =>
       item.id === id && item.selectedSize === size
         ? { ...item, quantity: newQty }
         : item
     );
-
     setCart(updatedCart);
-
     if (currentUser) {
       await supabase
         .from("cart_items")
@@ -406,13 +381,11 @@ export default function Storefront() {
     }
   };
 
-  // REMOVE FROM CART (DB + LOCAL)
   const removeFromCart = async (id: string, size: string) => {
     const updatedCart = cart.filter(
       (item) => !(item.id === id && item.selectedSize === size)
     );
     setCart(updatedCart);
-
     if (currentUser) {
       await supabase
         .from("cart_items")
@@ -497,6 +470,7 @@ export default function Storefront() {
     setIsAuthModalOpen(false);
   };
 
+  // FIXED CHECKOUT SUBMIT FUNCTION
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -515,6 +489,7 @@ export default function Storefront() {
 
     setIsSubmitting(true);
     setPaymentStatus("processing");
+
     const fullPhoneNumber =
       locationType === "rwanda" ? `+250${customerPhone.trim()}` : customerPhone;
     const locationDetails =
@@ -526,13 +501,13 @@ export default function Storefront() {
         ? paymentProvider.toUpperCase()
         : "International Order - Payment Pending (to be arranged)";
 
-    // Save order to Supabase
+    // Save order to Supabase with proper String conversion for size
     const { data: savedOrders, error: ordersError } = await supabase
       .from("orders")
       .insert(
         checkoutItems.map((item) => ({
           shoe_id: item.id,
-          size: parseInt(item.selectedSize, 10),
+          size: String(item.selectedSize), // Converted to String to match database type
           customer_phone: fullPhoneNumber,
           amount_rwf: item.price_rwf * item.quantity,
           user_id: currentUser ? currentUser.id : null,
@@ -541,9 +516,9 @@ export default function Storefront() {
       .select("id");
 
     if (ordersError || !savedOrders) {
-      console.error("Error saving order to Supabase:", ordersError?.message);
+      console.error("Error saving order to Supabase:", ordersError?.message || ordersError);
       setErrorMessage(
-        "We couldn't save your order. Please check your connection and try again."
+        ordersError?.message || "We couldn't save your order. Please check your connection and try again."
       );
       setPaymentStatus("error");
       setIsSubmitting(false);
@@ -924,7 +899,6 @@ export default function Storefront() {
                 Showing top footwear across Rwanda
               </p>
             </div>
-
             <div className="mb-10 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs">
               <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider mb-4 text-center sm:text-left">
                 Why Shop With Us?
@@ -976,7 +950,6 @@ export default function Storefront() {
                 </div>
               </div>
             </div>
-
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {debouncedSearch
@@ -987,7 +960,6 @@ export default function Storefront() {
                 {shoes.length} Footwear Available
               </span>
             </div>
-
             {loading && shoes.length === 0 ? (
               <div className="py-24 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
                 <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
@@ -1704,14 +1676,12 @@ export default function Storefront() {
                     ))}
                   </div>
                 </div>
-
                 {errorMessage && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{errorMessage}</span>
                   </div>
                 )}
-
                 {checkoutItems.length === 1 && (
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
@@ -1743,7 +1713,6 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
-
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                     Delivery Destination
@@ -1773,7 +1742,6 @@ export default function Storefront() {
                     </button>
                   </div>
                 </div>
-
                 {locationType === "rwanda" ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
@@ -1932,7 +1900,6 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
-
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                     Email Address (For Order Receipt)
@@ -1946,7 +1913,6 @@ export default function Storefront() {
                     className="w-full bg-slate-100 border-none rounded-xl text-xs p-2.5 font-medium focus:ring-2 focus:ring-black"
                   />
                 </div>
-
                 <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-1.5 text-xs text-slate-700">
                   <div className="flex justify-between">
                     <span>Items Subtotal ({checkoutItems.length}):</span>
@@ -1963,7 +1929,6 @@ export default function Storefront() {
                     <span>RWF {finalTotalPrice.toLocaleString()}</span>
                   </div>
                 </div>
-
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -1977,7 +1942,6 @@ export default function Storefront() {
                 </button>
               </form>
             )}
-
             {paymentStatus === "processing" && (
               <div className="py-12 text-center space-y-4">
                 <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -1991,7 +1955,6 @@ export default function Storefront() {
                 </p>
               </div>
             )}
-
             {paymentStatus === "error" && (
               <div className="py-8 text-center space-y-4">
                 <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
@@ -2009,7 +1972,6 @@ export default function Storefront() {
                 </button>
               </div>
             )}
-
             {paymentStatus === "success" && (
               <div className="py-8 text-center space-y-4">
                 <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
