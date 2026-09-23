@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import emailjs from "@emailjs/browser";
@@ -36,6 +37,7 @@ const FacebookIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
   </svg>
 );
+
 const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
     <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
@@ -43,6 +45,7 @@ const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
   </svg>
 );
+
 const TikTokIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg
     className={className}
@@ -119,6 +122,7 @@ export default function Storefront() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderReference, setOrderReference] = useState("");
+
   const HELPLINE_NUMBER = "+250781827386";
   const DISPLAY_HELPLINE = "0781827386";
   const OWNER_EMAIL = "patientira79@gmail.com";
@@ -177,6 +181,7 @@ export default function Storefront() {
         loadFromLocalStorage();
       }
     });
+
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       const user = session?.user ?? null;
       setCurrentUser(user);
@@ -187,6 +192,7 @@ export default function Storefront() {
         loadFromLocalStorage();
       }
     });
+
     return () => {
       authListener.subscription.unsubscribe();
     };
@@ -209,16 +215,19 @@ export default function Storefront() {
         .from("wishlist_items")
         .select("shoe_id, shoes(*)")
         .eq("user_id", userId);
+
       if (dbWishlist) {
         const fetchedWishlist: Shoe[] = dbWishlist
           .map((item: any) => item.shoes)
           .filter(Boolean);
         setWishlist(fetchedWishlist);
       }
+
       const { data: dbCart } = await supabase
         .from("cart_items")
         .select("shoe_id, selected_size, quantity, shoes(*)")
         .eq("user_id", userId);
+
       if (dbCart) {
         const fetchedCart: CartItem[] = dbCart
           .map((item: any) =>
@@ -254,10 +263,13 @@ export default function Storefront() {
     const currentPage = isInitial ? 0 : page;
     const from = currentPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
+
     let query = supabase.from("shoes").select("*", { count: "exact" });
+
     if (debouncedSearch.trim()) {
       query = query.or(`name.ilike.%${debouncedSearch.trim()}%,brand.ilike.%${debouncedSearch.trim()}%`);
     }
+
     if (selectedCategory === "Popular") {
       query = query.eq("is_featured", true).order("created_at", { ascending: false });
     } else if (selectedCategory === "Lowest price") {
@@ -271,7 +283,9 @@ export default function Storefront() {
     } else {
       query = query.order("created_at", { ascending: false });
     }
+
     const { data, count, error } = await query.range(from, to);
+
     if (error) {
       console.error("Error fetching footwear from Supabase:", error.message);
     } else {
@@ -282,6 +296,7 @@ export default function Storefront() {
         setShoes((prev) => [...prev, ...(data || [])]);
         setPage((prev) => prev + 1);
       }
+
       if (data && from + data.length >= (count || 0)) {
         setHasMore(false);
       } else {
@@ -296,7 +311,9 @@ export default function Storefront() {
     const updatedWishlist = isWishlisted
       ? wishlist.filter((item) => item.id !== shoe.id)
       : [...wishlist, shoe];
+
     setWishlist(updatedWishlist);
+
     if (currentUser) {
       if (isWishlisted) {
         await supabase
@@ -320,10 +337,12 @@ export default function Storefront() {
       shoe.available_sizes && shoe.available_sizes.length > 0
         ? shoe.available_sizes[0]
         : size;
+
     let updatedCart: CartItem[] = [];
     const existingIndex = cart.findIndex(
       (item) => item.id === shoe.id && item.selectedSize === defaultSize
     );
+
     if (existingIndex > -1) {
       updatedCart = cart.map((item, idx) =>
         idx === existingIndex
@@ -333,7 +352,9 @@ export default function Storefront() {
     } else {
       updatedCart = [...cart, { ...shoe, selectedSize: defaultSize, quantity: 1 }];
     }
+
     setCart(updatedCart);
+
     if (currentUser) {
       const newQty = existingIndex > -1 ? cart[existingIndex].quantity + 1 : 1;
       await supabase.from("cart_items").upsert(
@@ -355,17 +376,21 @@ export default function Storefront() {
       (item) => item.id === id && item.selectedSize === size
     );
     if (!itemToUpdate) return;
+
     const newQty = itemToUpdate.quantity + delta;
     if (newQty <= 0) {
       removeFromCart(id, size);
       return;
     }
+
     const updatedCart = cart.map((item) =>
       item.id === id && item.selectedSize === size
         ? { ...item, quantity: newQty }
         : item
     );
+
     setCart(updatedCart);
+
     if (currentUser) {
       await supabase
         .from("cart_items")
@@ -383,6 +408,7 @@ export default function Storefront() {
       (item) => !(item.id === id && item.selectedSize === size)
     );
     setCart(updatedCart);
+
     if (currentUser) {
       await supabase
         .from("cart_items")
@@ -413,6 +439,7 @@ export default function Storefront() {
     const initialSize = shoe.available_sizes && shoe.available_sizes.length > 0 
       ? shoe.available_sizes[0] 
       : shoeSize;
+
     setCheckoutItems([
       {
         ...shoe,
@@ -467,10 +494,10 @@ export default function Storefront() {
     setIsAuthModalOpen(false);
   };
 
-  // UPDATED CHECKOUT SUBMIT FUNCTION WITH INTOUCHPAY INTEGRATION
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+
     setErrorMessage("");
 
     if (locationType === "rwanda") {
@@ -488,24 +515,25 @@ export default function Storefront() {
     setPaymentStatus("processing");
 
     const fullPhoneNumber =
-      locationType === "rwanda" ? `250${customerPhone.trim()}` : customerPhone;
+      locationType === "rwanda" ? `+250${customerPhone.trim()}` : customerPhone;
+
     const locationDetails =
       locationType === "rwanda"
         ? `${province}, ${district} - ${localAddress}`
         : `${abroadAddress}, ${country}`;
+
     const paymentMethodText =
       locationType === "rwanda"
         ? paymentProvider.toUpperCase()
         : "International Order - Payment Pending (to be arranged)";
 
-    // Save order to Supabase
     const { data: savedOrders, error: ordersError } = await supabase
       .from("orders")
       .insert(
         checkoutItems.map((item) => ({
           shoe_id: item.id,
           size: String(item.selectedSize),
-          customer_phone: String(fullPhoneNumber),
+          customer_phone: fullPhoneNumber,
           amount_rwf: item.price_rwf * item.quantity,
           user_id: currentUser ? currentUser.id : null,
         }))
@@ -526,39 +554,6 @@ export default function Storefront() {
     const reference = orderIds[0] ? orderIds[0].slice(0, 8).toUpperCase() : "";
     setOrderReference(reference);
 
-    // INTOUCHPAY API CALL (FOR LOCAL RWANDA MOBILE MONEY)
-    if (locationType === "rwanda") {
-      try {
-        const intouchRes = await fetch("/api/checkout/intouch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amount: finalTotalPrice,
-            phone: fullPhoneNumber,
-            orderId: reference,
-          }),
-        });
-
-        const intouchData = await intouchRes.json();
-
-        if (!intouchRes.ok || intouchData.error) {
-          setErrorMessage(
-            intouchData.error || "Failed to trigger payment prompt with IntouchPay."
-          );
-          setPaymentStatus("error");
-          setIsSubmitting(false);
-          return;
-        }
-      } catch (payErr: any) {
-        console.error("IntouchPay API Error:", payErr);
-        setErrorMessage("Network error connecting to IntouchPay gateway.");
-        setPaymentStatus("error");
-        setIsSubmitting(false);
-        return;
-      }
-    }
-
-    // DISPATCH EMAIL NOTIFICATIONS
     const itemsSummary = checkoutItems
       .map(
         (item) =>
@@ -1014,7 +1009,6 @@ export default function Storefront() {
                         className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200/80 shadow-xs hover:shadow-md transition duration-300 flex flex-col justify-between group relative"
                       >
                         <div>
-                          {/* CLICKABLE PRODUCT IMAGE CONTAINER */}
                           <div 
                             onClick={() => setPreviewShoe(shoe)}
                             className="relative mb-3 overflow-hidden rounded-xl bg-slate-100 cursor-pointer group-hover:opacity-95 transition"
@@ -1273,7 +1267,6 @@ export default function Storefront() {
                     <b>Sunday:</b> 10:00 AM – 6:00 PM CAT
                   </p>
                 </div>
-                {/* Social Media Support Links */}
                 <div className="pt-6 border-t border-slate-100 mt-6">
                   <h4 className="font-bold text-xs text-slate-900 mb-3">Follow & Message Us</h4>
                   <div className="flex items-center gap-3">
