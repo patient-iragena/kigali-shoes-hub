@@ -70,10 +70,12 @@ interface Shoe {
   status?: string;
   available_sizes?: string[];
 }
+
 interface CartItem extends Shoe {
   selectedSize: string;
   quantity: number;
 }
+
 const AVAILABLE_SIZES = Array.from({ length: 41 }, (_, i) => String(20 + i));
 
 export default function Storefront() {
@@ -127,6 +129,7 @@ export default function Storefront() {
     instagram: "https://instagram.com/kigali.shoes.hub",
     tiktok: "https://tiktok.com/@kigali.shoes.hub"
   };
+
   const rwandaDistricts: Record<string, string[]> = {
     "Kigali City": ["Gasabo", "Kicukiro", "Nyarugenge"],
     "Eastern Province": [
@@ -174,7 +177,6 @@ export default function Storefront() {
         loadFromLocalStorage();
       }
     });
-
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       const user = session?.user ?? null;
       setCurrentUser(user);
@@ -185,7 +187,6 @@ export default function Storefront() {
         loadFromLocalStorage();
       }
     });
-
     return () => {
       authListener.subscription.unsubscribe();
     };
@@ -214,7 +215,6 @@ export default function Storefront() {
           .filter(Boolean);
         setWishlist(fetchedWishlist);
       }
-
       const { data: dbCart } = await supabase
         .from("cart_items")
         .select("shoe_id, selected_size, quantity, shoes(*)")
@@ -255,11 +255,9 @@ export default function Storefront() {
     const from = currentPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
     let query = supabase.from("shoes").select("*", { count: "exact" });
-
     if (debouncedSearch.trim()) {
       query = query.or(`name.ilike.%${debouncedSearch.trim()}%,brand.ilike.%${debouncedSearch.trim()}%`);
     }
-
     if (selectedCategory === "Popular") {
       query = query.eq("is_featured", true).order("created_at", { ascending: false });
     } else if (selectedCategory === "Lowest price") {
@@ -273,7 +271,6 @@ export default function Storefront() {
     } else {
       query = query.order("created_at", { ascending: false });
     }
-
     const { data, count, error } = await query.range(from, to);
     if (error) {
       console.error("Error fetching footwear from Supabase:", error.message);
@@ -470,7 +467,7 @@ export default function Storefront() {
     setIsAuthModalOpen(false);
   };
 
-  // FIXED CHECKOUT SUBMIT FUNCTION
+  // UPDATED CHECKOUT SUBMIT FUNCTION WITH INTOUCHPAY INTEGRATION
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -491,7 +488,7 @@ export default function Storefront() {
     setPaymentStatus("processing");
 
     const fullPhoneNumber =
-      locationType === "rwanda" ? `+250${customerPhone.trim()}` : customerPhone;
+      locationType === "rwanda" ? `250${customerPhone.trim()}` : customerPhone;
     const locationDetails =
       locationType === "rwanda"
         ? `${province}, ${district} - ${localAddress}`
@@ -501,14 +498,14 @@ export default function Storefront() {
         ? paymentProvider.toUpperCase()
         : "International Order - Payment Pending (to be arranged)";
 
-    // Save order to Supabase with proper String conversion for size
+    // Save order to Supabase
     const { data: savedOrders, error: ordersError } = await supabase
       .from("orders")
       .insert(
         checkoutItems.map((item) => ({
           shoe_id: item.id,
-          size: String(item.selectedSize), // Converted to String to match database type
-          customer_phone: fullPhoneNumber,
+          size: String(item.selectedSize),
+          customer_phone: String(fullPhoneNumber),
           amount_rwf: item.price_rwf * item.quantity,
           user_id: currentUser ? currentUser.id : null,
         }))
@@ -529,6 +526,39 @@ export default function Storefront() {
     const reference = orderIds[0] ? orderIds[0].slice(0, 8).toUpperCase() : "";
     setOrderReference(reference);
 
+    // INTOUCHPAY API CALL (FOR LOCAL RWANDA MOBILE MONEY)
+    if (locationType === "rwanda") {
+      try {
+        const intouchRes = await fetch("/api/checkout/intouch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: finalTotalPrice,
+            phone: fullPhoneNumber,
+            orderId: reference,
+          }),
+        });
+
+        const intouchData = await intouchRes.json();
+
+        if (!intouchRes.ok || intouchData.error) {
+          setErrorMessage(
+            intouchData.error || "Failed to trigger payment prompt with IntouchPay."
+          );
+          setPaymentStatus("error");
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (payErr: any) {
+        console.error("IntouchPay API Error:", payErr);
+        setErrorMessage("Network error connecting to IntouchPay gateway.");
+        setPaymentStatus("error");
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
+    // DISPATCH EMAIL NOTIFICATIONS
     const itemsSummary = checkoutItems
       .map(
         (item) =>
@@ -899,6 +929,7 @@ export default function Storefront() {
                 Showing top footwear across Rwanda
               </p>
             </div>
+
             <div className="mb-10 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs">
               <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider mb-4 text-center sm:text-left">
                 Why Shop With Us?
@@ -950,6 +981,7 @@ export default function Storefront() {
                 </div>
               </div>
             </div>
+
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {debouncedSearch
@@ -960,6 +992,7 @@ export default function Storefront() {
                 {shoes.length} Footwear Available
               </span>
             </div>
+
             {loading && shoes.length === 0 ? (
               <div className="py-24 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
                 <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
