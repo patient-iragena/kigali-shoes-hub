@@ -28,18 +28,26 @@ import {
   Headphones,
   Minus,
   ShoppingBasket,
-  LogOut
+  LogOut,
 } from "lucide-react";
 
 // Social Media Custom SVG Icons
 const FacebookIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
-    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
   </svg>
 );
 
 const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+  <svg
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    viewBox="0 0 24 24"
+  >
     <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
     <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
@@ -47,12 +55,7 @@ const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
 );
 
 const TikTokIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="currentColor"
-    viewBox="0 0 24 24"
-    xmlns="http://www.w3.org/2000/svg"
-  >
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
     <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 1 1-5.2-1.74 2.89 2.89 0 0 1 2.31-1.42V8.9a6.34 6.34 0 0 0-3.38.97 6.34 6.34 0 1 0 9.72 5.43V8.8a8.21 8.21 0 0 0 4.77 1.52V6.86a4.85 4.85 0 0 1-1.00-.17z" />
   </svg>
 );
@@ -88,6 +91,7 @@ export default function Storefront() {
   const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [shoes, setShoes] = useState<Shoe[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -100,7 +104,7 @@ export default function Storefront() {
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
+
   // State for Product Image Quick View Modal
   const [previewShoe, setPreviewShoe] = useState<Shoe | null>(null);
   const [page, setPage] = useState(0);
@@ -126,12 +130,12 @@ export default function Storefront() {
   const HELPLINE_NUMBER = "+250781827386";
   const DISPLAY_HELPLINE = "0781827386";
   const OWNER_EMAIL = "patientira79@gmail.com";
-  
+
   // Social Media Handles
   const SOCIAL_HANDLES = {
     facebook: "https://facebook.com/kigali.shoes.hub",
     instagram: "https://instagram.com/kigali.shoes.hub",
-    tiktok: "https://tiktok.com/@kigali.shoes.hub"
+    tiktok: "https://tiktok.com/@kigali.shoes.hub",
   };
 
   const rwandaDistricts: Record<string, string[]> = {
@@ -171,6 +175,7 @@ export default function Storefront() {
   // AUTHENTICATION & USER PERSISTENCE SETUP
   // --------------------------------------------------
   useEffect(() => {
+    setIsHydrated(true);
     supabase.auth.getSession().then(({ data: { session } }) => {
       const user = session?.user ?? null;
       setCurrentUser(user);
@@ -182,16 +187,18 @@ export default function Storefront() {
       }
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      const user = session?.user ?? null;
-      setCurrentUser(user);
-      if (user) {
-        setCustomerEmail(user.email || "");
-        syncUserData(user.id);
-      } else {
-        loadFromLocalStorage();
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const user = session?.user ?? null;
+        setCurrentUser(user);
+        if (user) {
+          setCustomerEmail(user.email || "");
+          syncUserData(user.id);
+        } else {
+          loadFromLocalStorage();
+        }
       }
-    });
+    );
 
     return () => {
       authListener.subscription.unsubscribe();
@@ -267,7 +274,9 @@ export default function Storefront() {
     let query = supabase.from("shoes").select("*", { count: "exact" });
 
     if (debouncedSearch.trim()) {
-      query = query.or(`name.ilike.%${debouncedSearch.trim()}%,brand.ilike.%${debouncedSearch.trim()}%`);
+      query = query.or(
+        `name.ilike.%${debouncedSearch.trim()}%,brand.ilike.%${debouncedSearch.trim()}%`
+      );
     }
 
     if (selectedCategory === "Popular") {
@@ -296,7 +305,6 @@ export default function Storefront() {
         setShoes((prev) => [...prev, ...(data || [])]);
         setPage((prev) => prev + 1);
       }
-
       if (data && from + data.length >= (count || 0)) {
         setHasMore(false);
       } else {
@@ -436,10 +444,10 @@ export default function Storefront() {
   );
 
   const openSingleItemCheckout = (shoe: Shoe) => {
-    const initialSize = shoe.available_sizes && shoe.available_sizes.length > 0 
-      ? shoe.available_sizes[0] 
-      : shoeSize;
-
+    const initialSize =
+      shoe.available_sizes && shoe.available_sizes.length > 0
+        ? shoe.available_sizes[0]
+        : shoeSize;
     setCheckoutItems([
       {
         ...shoe,
@@ -515,18 +523,17 @@ export default function Storefront() {
     setPaymentStatus("processing");
 
     const fullPhoneNumber =
-      locationType === "rwanda" ? `+250${customerPhone.trim()}` : customerPhone;
-
+      locationType === "rwanda" ? `+250${customerPhone.trim()}` : customerPhone.trim();
     const locationDetails =
       locationType === "rwanda"
         ? `${province}, ${district} - ${localAddress}`
         : `${abroadAddress}, ${country}`;
-
     const paymentMethodText =
       locationType === "rwanda"
         ? paymentProvider.toUpperCase()
-        : "International Order - Payment Pending (to be arranged)";
+        : "International Order - Payment Pending";
 
+    // Save order to Supabase
     const { data: savedOrders, error: ordersError } = await supabase
       .from("orders")
       .insert(
@@ -581,27 +588,26 @@ export default function Storefront() {
       total_price: `RWF ${finalTotalPrice.toLocaleString()}`,
       customer_phone: String(fullPhoneNumber),
       customer_email: String(customerEmail),
-      email: String(customerEmail),
+      to_email: String(customerEmail),
       location_details: String(locationDetails),
       payment_type: String(paymentMethodText),
     };
 
-    try {
-      await emailjs.send(
+    // Safely execute email dispatches with Promise.allSettled
+    await Promise.allSettled([
+      emailjs.send(
         "service_84glr5p",
         "template_wu0bkeb",
         { ...basePayload, to_email: OWNER_EMAIL },
         "83vF3uD9oYthKT_vR"
-      );
-      await emailjs.send(
+      ),
+      emailjs.send(
         "service_84glr5p",
         "template_oschd8a",
         { ...basePayload, to_email: customerEmail },
         "83vF3uD9oYthKT_vR"
-      );
-    } catch (err: any) {
-      console.error("EmailJS Notification Failure:", err);
-    }
+      ),
+    ]);
 
     setPaymentStatus("success");
     setIsSubmitting(false);
@@ -642,7 +648,11 @@ export default function Storefront() {
                 className="hover:text-white font-semibold flex items-center gap-1.5 transition"
               >
                 <User className="w-3.5 h-3.5 text-white" />
-                <span>{currentUser ? currentUser.email?.split("@")[0] : "Customer Account"}</span>
+                <span>
+                  {isHydrated && currentUser
+                    ? currentUser.email?.split("@")[0]
+                    : "Customer Account"}
+                </span>
               </button>
             </div>
           </div>
@@ -675,66 +685,21 @@ export default function Storefront() {
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-6 font-semibold text-xs text-slate-700">
-              <button
-                onClick={() => setActiveView("home")}
-                className={`transition ${
-                  activeView === "home"
-                    ? "text-black font-extrabold border-b-2 border-black pb-1"
-                    : "hover:text-black"
-                }`}
-              >
-                Home
-              </button>
-              <button
-                onClick={() => setActiveView("products")}
-                className={`transition ${
-                  activeView === "products"
-                    ? "text-black font-extrabold border-b-2 border-black pb-1"
-                    : "hover:text-black"
-                }`}
-              >
-                Products
-              </button>
-              <button
-                onClick={() => setActiveView("how-to-buy")}
-                className={`transition ${
-                  activeView === "how-to-buy"
-                    ? "text-black font-extrabold border-b-2 border-black pb-1"
-                    : "hover:text-black"
-                }`}
-              >
-                How To Buy
-              </button>
-              <button
-                onClick={() => setActiveView("about")}
-                className={`transition ${
-                  activeView === "about"
-                    ? "text-black font-extrabold border-b-2 border-black pb-1"
-                    : "hover:text-black"
-                }`}
-              >
-                About Us
-              </button>
-              <button
-                onClick={() => setActiveView("contact")}
-                className={`transition ${
-                  activeView === "contact"
-                    ? "text-black font-extrabold border-b-2 border-black pb-1"
-                    : "hover:text-black"
-                }`}
-              >
-                Contact
-              </button>
-              <button
-                onClick={() => setActiveView("returns")}
-                className={`transition ${
-                  activeView === "returns"
-                    ? "text-black font-extrabold border-b-2 border-black pb-1"
-                    : "hover:text-black"
-                }`}
-              >
-                Returns & Refunds
-              </button>
+              {(["home", "products", "how-to-buy", "about", "contact", "returns"] as const).map(
+                (view) => (
+                  <button
+                    key={view}
+                    onClick={() => setActiveView(view)}
+                    className={`transition capitalize ${
+                      activeView === view
+                        ? "text-black font-extrabold border-b-2 border-black pb-1"
+                        : "hover:text-black"
+                    }`}
+                  >
+                    {view.replace("-", " ")}
+                  </button>
+                )
+              )}
             </nav>
 
             {/* Desktop Search Input */}
@@ -770,24 +735,26 @@ export default function Storefront() {
                 title="Saved Wishlist"
               >
                 <Heart className="w-5 h-5" />
-                {wishlist.length > 0 && (
+                {isHydrated && wishlist.length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-black text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
                     {wishlist.length}
                   </span>
                 )}
               </button>
+
               <button
                 onClick={() => setIsCartOpen(true)}
                 className="p-2 text-slate-700 hover:text-black hover:bg-slate-100 rounded-full transition relative"
                 title="Shopping Bag"
               >
                 <ShoppingBag className="w-5 h-5" />
-                {cart.length > 0 && (
+                {isHydrated && cart.length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-black text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                     {cart.reduce((a, b) => a + b.quantity, 0)}
                   </span>
                 )}
               </button>
+
               <button
                 onClick={() => setIsAuthModalOpen(true)}
                 className="p-2 text-slate-700 hover:text-black hover:bg-slate-100 rounded-full transition"
@@ -795,6 +762,7 @@ export default function Storefront() {
               >
                 <User className="w-5 h-5" />
               </button>
+
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="p-2 text-slate-700 lg:hidden hover:bg-slate-100 rounded-full"
@@ -807,60 +775,20 @@ export default function Storefront() {
           {/* Mobile Navigation Dropdown */}
           {isMobileMenuOpen && (
             <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-3 text-xs font-semibold text-slate-800 shadow-lg">
-              <button
-                onClick={() => {
-                  setActiveView("home");
-                  setIsMobileMenuOpen(false);
-                }}
-                className="block w-full text-left py-1.5 hover:text-black"
-              >
-                Home Store
-              </button>
-              <button
-                onClick={() => {
-                  setActiveView("products");
-                  setIsMobileMenuOpen(false);
-                }}
-                className="block w-full text-left py-1.5 hover:text-black"
-              >
-                All Footwear Products
-              </button>
-              <button
-                onClick={() => {
-                  setActiveView("how-to-buy");
-                  setIsMobileMenuOpen(false);
-                }}
-                className="block w-full text-left py-1.5 hover:text-black"
-              >
-                How To Buy Instructions
-              </button>
-              <button
-                onClick={() => {
-                  setActiveView("about");
-                  setIsMobileMenuOpen(false);
-                }}
-                className="block w-full text-left py-1.5 hover:text-black"
-              >
-                About Kigali Shoes Hub
-              </button>
-              <button
-                onClick={() => {
-                  setActiveView("contact");
-                  setIsMobileMenuOpen(false);
-                }}
-                className="block w-full text-left py-1.5 hover:text-black"
-              >
-                Contact Customer Support
-              </button>
-              <button
-                onClick={() => {
-                  setActiveView("returns");
-                  setIsMobileMenuOpen(false);
-                }}
-                className="block w-full text-left py-1.5 hover:text-black"
-              >
-                Returns & Refund Policy
-              </button>
+              {(["home", "products", "how-to-buy", "about", "contact", "returns"] as const).map(
+                (view) => (
+                  <button
+                    key={view}
+                    onClick={() => {
+                      setActiveView(view);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="block w-full text-left py-1.5 hover:text-black capitalize"
+                  >
+                    {view.replace("-", " ")}
+                  </button>
+                )
+              )}
             </div>
           )}
         </header>
@@ -955,9 +883,7 @@ export default function Storefront() {
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
                   <RefreshCw className="w-6 h-6 text-black shrink-0" />
                   <div>
-                    <h4 className="font-bold text-xs text-slate-900">
-                      Easy Returns
-                    </h4>
+                    <h4 className="font-bold text-xs text-slate-900">Easy Returns</h4>
                     <p className="text-[10px] text-slate-500">
                       Hassle free size exchanges
                     </p>
@@ -1002,14 +928,17 @@ export default function Storefront() {
                 <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
                   {shoes.map((shoe) => {
                     const isWishlisted = wishlist.some((item) => item.id === shoe.id);
-                    const isInStock = shoe.status ? shoe.status !== "OUT OF STOCK" : shoe.is_in_stock !== false;
+                    const isInStock = shoe.status
+                      ? shoe.status !== "OUT OF STOCK"
+                      : shoe.is_in_stock !== false;
+
                     return (
                       <div
                         key={shoe.id}
                         className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200/80 shadow-xs hover:shadow-md transition duration-300 flex flex-col justify-between group relative"
                       >
                         <div>
-                          <div 
+                          <div
                             onClick={() => setPreviewShoe(shoe)}
                             className="relative mb-3 overflow-hidden rounded-xl bg-slate-100 cursor-pointer group-hover:opacity-95 transition"
                             title="Click to view details"
@@ -1019,7 +948,6 @@ export default function Storefront() {
                               alt={shoe.name}
                               className="w-full h-36 sm:h-52 object-cover group-hover:scale-105 transition duration-300"
                             />
-                            
                             <div className="absolute top-2 left-2">
                               <span
                                 className={`text-[8px] sm:text-[9px] font-extrabold px-1.5 sm:px-2 py-0.5 rounded-full uppercase tracking-wider backdrop-blur-xs shadow-xs text-white ${
@@ -1047,8 +975,8 @@ export default function Storefront() {
                               <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                             </button>
                           </div>
-                          
-                          <h3 
+
+                          <h3
                             onClick={() => setPreviewShoe(shoe)}
                             className="font-bold text-slate-900 text-xs sm:text-sm group-hover:text-black transition line-clamp-1 cursor-pointer"
                           >
@@ -1059,7 +987,9 @@ export default function Storefront() {
                           </p>
                           {shoe.available_sizes && shoe.available_sizes.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-1 items-center">
-                              <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 mr-0.5">Sizes:</span>
+                              <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 mr-0.5">
+                                Sizes:
+                              </span>
                               {shoe.available_sizes.slice(0, 4).map((sz) => (
                                 <span
                                   key={sz}
@@ -1076,6 +1006,7 @@ export default function Storefront() {
                             </div>
                           )}
                         </div>
+
                         <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t border-slate-100 flex items-center justify-between gap-1">
                           <div>
                             <p className="text-[9px] sm:text-[10px] text-slate-400 uppercase font-semibold">
@@ -1108,6 +1039,7 @@ export default function Storefront() {
                     );
                   })}
                 </div>
+
                 {hasMore && (
                   <div className="mt-12 text-center">
                     <button
@@ -1193,9 +1125,7 @@ export default function Storefront() {
         {/* About Us Page */}
         {activeView === "about" && (
           <main className="max-w-4xl mx-auto px-4 py-12">
-            <h2 className="text-2xl font-black text-slate-900 mb-2">
-              About Kigali Shoes Hub
-            </h2>
+            <h2 className="text-2xl font-black text-slate-900 mb-2">About Kigali Shoes Hub</h2>
             <p className="text-xs text-slate-500 mb-8">
               Rwanda&apos;s premier store for original sneakers, official footwear, and athletic shoes.
             </p>
@@ -1221,9 +1151,7 @@ export default function Storefront() {
         {/* Contact Page */}
         {activeView === "contact" && (
           <main className="max-w-4xl mx-auto px-4 py-12">
-            <h2 className="text-2xl font-black text-slate-900 mb-2">
-              Contact Support
-            </h2>
+            <h2 className="text-2xl font-black text-slate-900 mb-2">Contact Support</h2>
             <p className="text-xs text-slate-500 mb-8">
               Have questions regarding sizing, custom orders, or delivery tracking? Get in touch.
             </p>
@@ -1251,12 +1179,11 @@ export default function Storefront() {
                   <MapPin className="w-5 h-5 text-slate-900" />
                   <div>
                     <h4 className="font-bold text-xs text-slate-900">Store Address</h4>
-                    <p className="text-xs text-slate-600">
-                      Kigali City, Rwanda
-                    </p>
+                    <p className="text-xs text-slate-600">Kigali City, Rwanda</p>
                   </div>
                 </div>
               </div>
+
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
                 <div>
                   <h3 className="font-bold text-sm text-slate-900 mb-3">Customer Support Hours</h3>
@@ -1422,7 +1349,8 @@ export default function Storefront() {
                   <div>
                     <h2 className="font-extrabold text-base text-slate-900">Shopping Bag</h2>
                     <p className="text-[11px] text-slate-400 font-medium">
-                      {cart.reduce((a, b) => a + b.quantity, 0)} item{cart.reduce((a, b) => a + b.quantity, 0) !== 1 ? "s" : ""} in your bag
+                      {cart.reduce((a, b) => a + b.quantity, 0)} item
+                      {cart.reduce((a, b) => a + b.quantity, 0) !== 1 ? "s" : ""} in your bag
                     </p>
                   </div>
                 </div>
@@ -1433,13 +1361,16 @@ export default function Storefront() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 {cart.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center py-12">
                     <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 text-slate-300 border border-slate-100">
                       <ShoppingBasket className="w-8 h-8" />
                     </div>
-                    <h3 className="font-bold text-slate-800 text-sm mb-1">Your Shopping Bag is empty</h3>
+                    <h3 className="font-bold text-slate-800 text-sm mb-1">
+                      Your Shopping Bag is empty
+                    </h3>
                     <p className="text-xs text-slate-400 max-w-[220px] mb-6">
                       Looks like you haven&apos;t added any footwear to your bag yet.
                     </p>
@@ -1506,12 +1437,15 @@ export default function Storefront() {
                   ))
                 )}
               </div>
+
               {cart.length > 0 && (
                 <div className="p-6 border-t border-slate-100 bg-white space-y-4 shadow-lg">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs text-slate-500">
                       <span>Subtotal</span>
-                      <span className="font-semibold text-slate-700">RWF {cartTotal.toLocaleString()}</span>
+                      <span className="font-semibold text-slate-700">
+                        RWF {cartTotal.toLocaleString()}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-500">
                       <span>Estimated Delivery</span>
@@ -1519,7 +1453,9 @@ export default function Storefront() {
                     </div>
                     <div className="flex items-center justify-between text-sm font-black text-slate-900 pt-2 border-t border-slate-100">
                       <span>Bag Total</span>
-                      <span className="text-base text-black">RWF {cartTotal.toLocaleString()}</span>
+                      <span className="text-base text-black">
+                        RWF {cartTotal.toLocaleString()}
+                      </span>
                     </div>
                   </div>
                   <button
@@ -1572,9 +1508,7 @@ export default function Storefront() {
                         className="w-14 h-14 object-cover rounded-lg"
                       />
                       <div className="flex-1 px-3">
-                        <h4 className="font-bold text-xs text-slate-900">
-                          {shoe.name}
-                        </h4>
+                        <h4 className="font-bold text-xs text-slate-900">{shoe.name}</h4>
                         <p className="text-xs font-black text-black">
                           RWF {shoe.price_rwf?.toLocaleString()}
                         </p>
@@ -1626,9 +1560,7 @@ export default function Storefront() {
             />
             {currentUser ? (
               <div>
-                <h3 className="font-extrabold text-lg text-slate-900 mb-1">
-                  Welcome Back!
-                </h3>
+                <h3 className="font-extrabold text-lg text-slate-900 mb-1">Welcome Back!</h3>
                 <p className="text-xs text-slate-500 mb-6 font-medium">
                   Signed in as <br />
                   <strong className="text-slate-900 font-bold">{currentUser.email}</strong>
@@ -1677,11 +1609,15 @@ export default function Storefront() {
               <form onSubmit={handleCheckoutSubmit} className="space-y-4">
                 <div className="pb-4 border-b border-slate-100 space-y-2">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Order Summary ({checkoutItems.length} item{checkoutItems.length > 1 ? "s" : ""})
+                    Order Summary ({checkoutItems.length} item
+                    {checkoutItems.length > 1 ? "s" : ""})
                   </h4>
                   <div className="max-h-36 overflow-y-auto space-y-2 pr-1">
                     {checkoutItems.map((item, idx) => (
-                      <div key={`${item.id}-${idx}`} className="flex gap-3 items-center bg-slate-50 p-2 rounded-xl border border-slate-100">
+                      <div
+                        key={`${item.id}-${idx}`}
+                        className="flex gap-3 items-center bg-slate-50 p-2 rounded-xl border border-slate-100"
+                      >
                         <img
                           src={item.image_url}
                           alt={item.name}
@@ -1702,19 +1638,22 @@ export default function Storefront() {
                     ))}
                   </div>
                 </div>
+
                 {errorMessage && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{errorMessage}</span>
                   </div>
                 )}
+
                 {checkoutItems.length === 1 && (
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                       Select Shoe Size
                     </label>
                     <div className="flex gap-1.5 overflow-x-auto py-1.5 scrollbar-thin">
-                      {(checkoutItems[0].available_sizes && checkoutItems[0].available_sizes.length > 0
+                      {(checkoutItems[0].available_sizes &&
+                      checkoutItems[0].available_sizes.length > 0
                         ? checkoutItems[0].available_sizes
                         : AVAILABLE_SIZES
                       ).map((sz) => (
@@ -1739,6 +1678,7 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
+
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                     Delivery Destination
@@ -1768,6 +1708,7 @@ export default function Storefront() {
                     </button>
                   </div>
                 </div>
+
                 {locationType === "rwanda" ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
@@ -1807,6 +1748,7 @@ export default function Storefront() {
                         </select>
                       </div>
                     </div>
+
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                         Street / Sector / House Address
@@ -1820,6 +1762,7 @@ export default function Storefront() {
                         className="w-full bg-slate-100 border-none rounded-xl text-xs p-2.5 font-medium focus:ring-2 focus:ring-black"
                       />
                     </div>
+
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                         Select Mobile Payment Method
@@ -1849,6 +1792,7 @@ export default function Storefront() {
                         </button>
                       </div>
                     </div>
+
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                         Payment Mobile Phone Number
@@ -1926,6 +1870,7 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
+
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                     Email Address (For Order Receipt)
@@ -1939,10 +1884,13 @@ export default function Storefront() {
                     className="w-full bg-slate-100 border-none rounded-xl text-xs p-2.5 font-medium focus:ring-2 focus:ring-black"
                   />
                 </div>
+
                 <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-1.5 text-xs text-slate-700">
                   <div className="flex justify-between">
                     <span>Items Subtotal ({checkoutItems.length}):</span>
-                    <span className="font-semibold">RWF {itemsBasePrice.toLocaleString()}</span>
+                    <span className="font-semibold">
+                      RWF {itemsBasePrice.toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Delivery Fee ({locationType === "rwanda" ? province : "Abroad"}):</span>
@@ -1955,6 +1903,7 @@ export default function Storefront() {
                     <span>RWF {finalTotalPrice.toLocaleString()}</span>
                   </div>
                 </div>
+
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -1968,11 +1917,14 @@ export default function Storefront() {
                 </button>
               </form>
             )}
+
             {paymentStatus === "processing" && (
               <div className="py-12 text-center space-y-4">
                 <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin mx-auto"></div>
                 <h4 className="font-extrabold text-sm text-slate-900">
-                  {locationType === "rwanda" ? "Processing Your Payment Prompt..." : "Reserving Your Order..."}
+                  {locationType === "rwanda"
+                    ? "Processing Your Payment Prompt..."
+                    : "Reserving Your Order..."}
                 </h4>
                 <p className="text-xs text-slate-500">
                   {locationType === "rwanda"
@@ -1981,6 +1933,7 @@ export default function Storefront() {
                 </p>
               </div>
             )}
+
             {paymentStatus === "error" && (
               <div className="py-8 text-center space-y-4">
                 <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
@@ -1998,6 +1951,7 @@ export default function Storefront() {
                 </button>
               </div>
             )}
+
             {paymentStatus === "success" && (
               <div className="py-8 text-center space-y-4">
                 <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
@@ -2017,7 +1971,8 @@ export default function Storefront() {
                 </p>
                 {orderReference && (
                   <p className="text-[11px] text-slate-500 font-semibold">
-                    Order Reference: <span className="font-mono text-slate-800">{orderReference}</span>
+                    Order Reference:{" "}
+                    <span className="font-mono text-slate-800">{orderReference}</span>
                   </p>
                 )}
                 <button
@@ -2050,6 +2005,7 @@ export default function Storefront() {
               Your premier destination for high quality footwear in Kigali. Guaranteed authenticity and swift local delivery.
             </p>
           </div>
+
           <div className="space-y-2">
             <span className="text-white font-bold text-sm block mb-3">Customer Care</span>
             <ul className="space-y-2">
@@ -2065,6 +2021,7 @@ export default function Storefront() {
               </li>
             </ul>
           </div>
+
           <div className="space-y-2">
             <span className="text-white font-bold text-sm block mb-3">Quick Links</span>
             <ul className="space-y-2">
@@ -2085,6 +2042,7 @@ export default function Storefront() {
               </li>
             </ul>
           </div>
+
           <div className="space-y-3">
             <span className="text-white font-bold text-sm block mb-3">Contact Support</span>
             <p className="text-gray-400">Call / Help Line: {DISPLAY_HELPLINE}</p>
@@ -2123,6 +2081,7 @@ export default function Storefront() {
             </div>
           </div>
         </div>
+
         <div className="border-t border-gray-800 bg-black py-4 px-4 sm:px-8">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 text-gray-400 text-[11px]">
             <span>© {new Date().getFullYear()} Kigali Shoes Hub. All rights reserved.</span>
