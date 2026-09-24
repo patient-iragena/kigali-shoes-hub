@@ -5,38 +5,66 @@ export async function POST(req: Request) {
   try {
     const { amount, phone } = await req.json();
 
+    if (!amount || !phone) {
+      return NextResponse.json(
+        { success: false, message: "Amount and phone number are required." },
+        { status: 400 }
+      );
+    }
+
+    // Load environment variables (fallback values included for reference)
     const username = process.env.INTOUCH_USERNAME || "irapatechnol0039";
     const accountNo = process.env.INTOUCH_ACCOUNT_NUMBER || "SBX00000043";
-    const partnerPassword = process.env.INTOUCH_PARTNER_PASSWORD || "kH!r2rUaD6lQLEfKRVkCN2!Z3@er$Iq6w&kK@1j1";
-    const baseURL = process.env.INTOUCH_BASE_URL || "https://developer.intouchpay.co.rw";
+    const partnerPassword =
+      process.env.INTOUCH_PARTNER_PASSWORD ||
+      "kH!r2rUaD6lQLEfKRVkCN2!Z3@er$Iq6w&kK@1j1";
+    const baseURL =
+      process.env.INTOUCH_BASE_URL || "https://developer.intouchpay.co.rw";
 
-    // Standard YYYYMMDDHHMMSS format
+    // Format timestamp in UTC: YYYYMMDDHHMMSS
     const now = new Date();
     const timestamp = now.toISOString().replace(/[-T:\.Z]/g, "").slice(0, 14);
 
-    // Dynamic Hash Calculation
+    // Raw String: Username + AccountNo + PartnerPassword + Timestamp
     const rawString = `${username}${accountNo}${partnerPassword}${timestamp}`;
-    const hashedPassword = crypto.createHash("sha256").update(rawString).digest("hex");
 
+    // Compute SHA-256 Hash
+    const hashedPassword = crypto
+      .createHash("sha256")
+      .update(rawString)
+      .digest("hex");
+
+    // Format phone number to 12 digits (2507XXXXXXXX)
+    const formattedPhone = phone.replace(/\+/g, "").trim();
+
+    // Prepare IntouchPay API Payload
     const payload = {
       username: username,
       timestamp: timestamp,
       password: hashedPassword,
       amount: String(amount),
-      mobilephone: phone.replace("+", ""),
-      requesttransactionid: `TXN_${Date.now()}`,
+      mobilephone: formattedPhone,
+      requesttransactionid: `REQ_${Date.now()}`,
       callbackurl: "https://kigalishoeshub.com/api/callback",
     };
 
+    // Send payment request to IntouchPay Sandbox Endpoint
     const response = await fetch(`${baseURL}/api/v1/sandbox/requestpayment/`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(payload),
     });
 
     const data = await response.json();
+
     return NextResponse.json(data);
   } catch (error: any) {
-    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+    console.error("IntouchPay API Error:", error);
+    return NextResponse.json(
+      { success: false, message: error.message || "Internal server error" },
+      { status: 500 }
+    );
   }
 }
