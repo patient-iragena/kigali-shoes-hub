@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Load environment variables (fallback values included for reference)
+    // Load credentials from environment variables
     const username = process.env.INTOUCH_USERNAME || "irapatechnol0039";
     const accountNo = process.env.INTOUCH_ACCOUNT_NUMBER || "SBX00000043";
     const partnerPassword =
@@ -21,11 +21,11 @@ export async function POST(req: Request) {
     const baseURL =
       process.env.INTOUCH_BASE_URL || "https://developer.intouchpay.co.rw";
 
-    // Format timestamp in UTC: YYYYMMDDHHMMSS
+    // UTC Timestamp generation (YYYYMMDDHHMMSS)
     const now = new Date();
     const timestamp = now.toISOString().replace(/[-T:\.Z]/g, "").slice(0, 14);
 
-    // Raw String: Username + AccountNo + PartnerPassword + Timestamp
+    // Concatenate raw string: Username + AccountNo + PartnerPassword + Timestamp
     const rawString = `${username}${accountNo}${partnerPassword}${timestamp}`;
 
     // Compute SHA-256 Hash
@@ -34,10 +34,10 @@ export async function POST(req: Request) {
       .update(rawString)
       .digest("hex");
 
-    // Format phone number to 12 digits (2507XXXXXXXX)
+    // Format phone number to clean string
     const formattedPhone = phone.replace(/\+/g, "").trim();
 
-    // Prepare IntouchPay API Payload
+    // Prepare IntouchPay API request body
     const payload = {
       username: username,
       timestamp: timestamp,
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       callbackurl: "https://kigalishoeshub.com/api/callback",
     };
 
-    // Send payment request to IntouchPay Sandbox Endpoint
+    // Forward request to IntouchPay Sandbox Endpoint
     const response = await fetch(`${baseURL}/api/v1/sandbox/requestpayment/`, {
       method: "POST",
       headers: {
