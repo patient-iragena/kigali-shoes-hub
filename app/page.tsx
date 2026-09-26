@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import emailjs from "@emailjs/browser";
@@ -38,7 +37,6 @@ const FacebookIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
   </svg>
 );
-
 const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg
     className={className}
@@ -54,19 +52,9 @@ const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
   </svg>
 );
-
 const TikTokIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
     <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 1 1-5.2-1.74 2.89 2.89 0 0 1 2.31-1.42V8.9a6.34 6.34 0 0 0-3.38.97 6.34 6.34 0 1 0 9.72 5.43V8.8a8.21 8.21 0 0 0 4.77 1.52V6.86a4.85 4.85 0 0 1-1.00-.17z" />
-  </svg>
-);
-
-// InTouch Pay Custom Logo Component
-const InTouchLogo = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="currentColor" />
-    <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -129,7 +117,11 @@ export default function Storefront() {
   const [province, setProvince] = useState("Kigali City");
   const [district, setDistrict] = useState("Gasabo");
   const [localAddress, setLocalAddress] = useState("");
+  
+  // Payment Provider state: sets underlying gateway, tracked UI selection via activeMomoOption
   const [paymentProvider, setPaymentProvider] = useState<"mtn" | "airtel" | "intouch">("intouch");
+  const [selectedMomo, setSelectedMomo] = useState<"mtn" | "airtel">("mtn");
+
   const [country, setCountry] = useState("");
   const [abroadAddress, setAbroadAddress] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -234,7 +226,6 @@ export default function Storefront() {
         .from("wishlist_items")
         .select("shoe_id, shoes(*)")
         .eq("user_id", userId);
-
       if (dbWishlist) {
         const fetchedWishlist: Shoe[] = dbWishlist
           .map((item: any) => item.shoes)
@@ -246,7 +237,6 @@ export default function Storefront() {
         .from("cart_items")
         .select("shoe_id, selected_size, quantity, shoes(*)")
         .eq("user_id", userId);
-
       if (dbCart) {
         const fetchedCart: CartItem[] = dbCart
           .map((item: any) =>
@@ -517,6 +507,7 @@ export default function Storefront() {
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+
     setErrorMessage("");
 
     if (locationType === "rwanda") {
@@ -539,11 +530,10 @@ export default function Storefront() {
       locationType === "rwanda"
         ? `${province}, ${district} - ${localAddress}`
         : `${abroadAddress}, ${country}`;
+
     const paymentMethodText =
       locationType === "rwanda"
-        ? paymentProvider === "intouch"
-          ? "INTOUCH PAY (MTN/Airtel)"
-          : paymentProvider.toUpperCase()
+        ? `INTOUCH PAY (${selectedMomo.toUpperCase()})`
         : "International Order - Payment Pending";
 
     // Save order to Supabase
@@ -556,7 +546,7 @@ export default function Storefront() {
           customer_phone: `+${fullPhoneNumber}`,
           amount_rwf: item.price_rwf * item.quantity,
           user_id: currentUser ? currentUser.id : null,
-          payment_method: paymentProvider,
+          payment_method: "intouch",
           payment_status: "PENDING",
         }))
       )
@@ -577,7 +567,7 @@ export default function Storefront() {
     setOrderReference(reference);
 
     // Call InTouch Rwanda Payment API endpoint if selected inside Rwanda
-    if (locationType === "rwanda" && (paymentProvider === "intouch" || paymentProvider === "mtn" || paymentProvider === "airtel")) {
+    if (locationType === "rwanda") {
       try {
         const intouchRes = await fetch("/api/intouch/checkout", {
           method: "POST",
@@ -589,9 +579,7 @@ export default function Storefront() {
             email: customerEmail,
           }),
         });
-
         const intouchData = await intouchRes.json();
-
         if (!intouchRes.ok || !intouchData.success) {
           console.warn("InTouch direct API notice:", intouchData.message || "Push sent");
         }
@@ -1392,6 +1380,7 @@ export default function Storefront() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 {cart.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center py-12">
@@ -1467,6 +1456,7 @@ export default function Storefront() {
                   ))
                 )}
               </div>
+
               {cart.length > 0 && (
                 <div className="p-6 border-t border-slate-100 bg-white space-y-4 shadow-lg">
                   <div className="space-y-2">
@@ -1777,7 +1767,6 @@ export default function Storefront() {
                         </select>
                       </div>
                     </div>
-
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                         Street / Sector / House Address
@@ -1791,29 +1780,19 @@ export default function Storefront() {
                         className="w-full bg-slate-100 border-none rounded-xl text-xs p-2.5 font-medium focus:ring-2 focus:ring-black"
                       />
                     </div>
-
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                        Select Payment Gateway
+                        Select Mobile Payment Method
                       </label>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
-                          onClick={() => setPaymentProvider("intouch")}
-                          className={`py-2 px-2.5 rounded-xl text-[11px] font-extrabold border flex items-center justify-center gap-1 transition ${
-                            paymentProvider === "intouch"
-                              ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
-                              : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
-                          }`}
-                        >
-                          <InTouchLogo className="w-3.5 h-3.5" />
-                          <span>InTouch</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentProvider("mtn")}
+                          onClick={() => {
+                            setPaymentProvider("intouch");
+                            setSelectedMomo("mtn");
+                          }}
                           className={`py-2 px-2.5 rounded-xl text-[11px] font-extrabold border transition ${
-                            paymentProvider === "mtn"
+                            selectedMomo === "mtn"
                               ? "bg-yellow-400 text-black border-yellow-500 shadow-xs"
                               : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
                           }`}
@@ -1822,9 +1801,12 @@ export default function Storefront() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setPaymentProvider("airtel")}
+                          onClick={() => {
+                            setPaymentProvider("intouch");
+                            setSelectedMomo("airtel");
+                          }}
                           className={`py-2 px-2.5 rounded-xl text-[11px] font-extrabold border transition ${
-                            paymentProvider === "airtel"
+                            selectedMomo === "airtel"
                               ? "bg-red-600 text-white border-red-700 shadow-xs"
                               : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
                           }`}
@@ -1833,7 +1815,6 @@ export default function Storefront() {
                         </button>
                       </div>
                     </div>
-
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                         Payment Mobile Phone Number
@@ -1982,7 +1963,7 @@ export default function Storefront() {
                 </h4>
                 <p className="text-xs text-slate-500">
                   {locationType === "rwanda"
-                    ? "Please check your phone (+250 " + customerPhone + ") and approve the MTN MoMo / Airtel Money prompt."
+                    ? "Please check your phone (+250 " + customerPhone + ") and approve the prompt."
                     : "We're saving your order details for our team to follow up."}
                 </p>
               </div>
