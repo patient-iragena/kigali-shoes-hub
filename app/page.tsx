@@ -102,26 +102,25 @@ export default function Storefront() {
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  // State for Product Image Quick View Modal
+  
+  // State for Product Quick View / Size Selector Modal
   const [previewShoe, setPreviewShoe] = useState<Shoe | null>(null);
+  const [sizePickerShoe, setSizePickerShoe] = useState<Shoe | null>(null);
+  const [selectedSizeForAdd, setSelectedSizeForAdd] = useState<string>("39");
 
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 12;
   const [hasMore, setHasMore] = useState(true);
-
   const [checkoutItems, setCheckoutItems] = useState<CartItem[]>([]);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [locationType, setLocationType] = useState<"rwanda" | "abroad">("rwanda");
-  const [shoeSize, setShoeSize] = useState("41");
+  const [shoeSize, setShoeSize] = useState("39");
   const [province, setProvince] = useState("Kigali City");
   const [district, setDistrict] = useState("Gasabo");
   const [localAddress, setLocalAddress] = useState("");
   
-  // Payment Provider state: sets underlying gateway, tracked UI selection via activeMomoOption
-  const [paymentProvider, setPaymentProvider] = useState<"mtn" | "airtel" | "intouch">("intouch");
+  // Payment Provider state: MTN MoMo or Airtel Money
   const [selectedMomo, setSelectedMomo] = useState<"mtn" | "airtel">("mtn");
-
   const [country, setCountry] = useState("");
   const [abroadAddress, setAbroadAddress] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -135,7 +134,6 @@ export default function Storefront() {
   const DISPLAY_HELPLINE = "0781827386";
   const OWNER_EMAIL = "patientira79@gmail.com";
 
-  // Social Media Handles
   const SOCIAL_HANDLES = {
     facebook: "https://facebook.com/kigali.shoes.hub",
     instagram: "https://instagram.com/kigali.shoes.hub",
@@ -226,6 +224,7 @@ export default function Storefront() {
         .from("wishlist_items")
         .select("shoe_id, shoes(*)")
         .eq("user_id", userId);
+
       if (dbWishlist) {
         const fetchedWishlist: Shoe[] = dbWishlist
           .map((item: any) => item.shoes)
@@ -237,6 +236,7 @@ export default function Storefront() {
         .from("cart_items")
         .select("shoe_id, selected_size, quantity, shoes(*)")
         .eq("user_id", userId);
+
       if (dbCart) {
         const fetchedCart: CartItem[] = dbCart
           .map((item: any) =>
@@ -307,7 +307,6 @@ export default function Storefront() {
         setShoes((prev) => [...prev, ...(data || [])]);
         setPage((prev) => prev + 1);
       }
-
       if (data && from + data.length >= (count || 0)) {
         setHasMore(false);
       } else {
@@ -343,15 +342,24 @@ export default function Storefront() {
     }
   };
 
-  const addToCart = async (shoe: Shoe, size = shoeSize) => {
-    const defaultSize =
-      shoe.available_sizes && shoe.available_sizes.length > 0
-        ? shoe.available_sizes[0]
-        : size;
+  const openSizePicker = (shoe: Shoe) => {
+    const defaultSz = shoe.available_sizes && shoe.available_sizes.length > 0
+      ? shoe.available_sizes[0]
+      : "39";
+    setSelectedSizeForAdd(defaultSz);
+    setSizePickerShoe(shoe);
+  };
 
+  const confirmAddToCart = async () => {
+    if (!sizePickerShoe) return;
+    await addToCart(sizePickerShoe, selectedSizeForAdd);
+    setSizePickerShoe(null);
+  };
+
+  const addToCart = async (shoe: Shoe, size = "39") => {
     let updatedCart: CartItem[] = [];
     const existingIndex = cart.findIndex(
-      (item) => item.id === shoe.id && item.selectedSize === defaultSize
+      (item) => item.id === shoe.id && item.selectedSize === size
     );
 
     if (existingIndex > -1) {
@@ -361,7 +369,7 @@ export default function Storefront() {
           : item
       );
     } else {
-      updatedCart = [...cart, { ...shoe, selectedSize: defaultSize, quantity: 1 }];
+      updatedCart = [...cart, { ...shoe, selectedSize: size, quantity: 1 }];
     }
 
     setCart(updatedCart);
@@ -372,11 +380,69 @@ export default function Storefront() {
         {
           user_id: currentUser.id,
           shoe_id: shoe.id,
-          selected_size: defaultSize,
+          selected_size: size,
           quantity: newQty,
         },
         { onConflict: "user_id, shoe_id, selected_size" }
       );
+    } else {
+      localStorage.setItem("ksh_cart", JSON.stringify(updatedCart));
+    }
+  };
+
+  const updateCartItemSize = async (id: string, oldSize: string, newSize: string) => {
+    if (oldSize === newSize) return;
+
+    const existingTargetIndex = cart.findIndex(
+      (item) => item.id === id && item.selectedSize === newSize
+    );
+
+    let updatedCart: CartItem[] = [];
+
+    if (existingTargetIndex > -1) {
+      const oldItem = cart.find((item) => item.id === id && item.selectedSize === oldSize);
+      const addedQty = oldItem ? oldItem.quantity : 1;
+
+      updatedCart = cart
+        .filter((item) => !(item.id === id && item.selectedSize === oldSize))
+        .map((item) =>
+          item.id === id && item.selectedSize === newSize
+            ? { ...item, quantity: item.quantity + addedQty }
+            : item
+        );
+    } else {
+      updatedCart = cart.map((item) =>
+        item.id === id && item.selectedSize === oldSize
+          ? { ...item, selectedSize: newSize }
+          : item
+      );
+    }
+
+    setCart(updatedCart);
+
+    if (currentUser) {
+      await supabase
+        .from("cart_items")
+        .delete()
+        .eq("user_id", currentUser.id)
+        .eq("shoe_id", id)
+        .eq("selected_size", oldSize);
+
+      const updatedItem = updatedCart.find(
+        (item) => item.id === id && item.selectedSize === newSize
+      );
+
+      if (updatedItem) {
+        await supabase.from("cart_items").upsert(
+          {
+            user_id: currentUser.id,
+            shoe_id: id,
+            selected_size: newSize,
+            quantity: updatedItem.quantity,
+          },
+          { onConflict: "user_id, shoe_id, selected_size" }
+        );
+      }
     } else {
       localStorage.setItem("ksh_cart", JSON.stringify(updatedCart));
     }
@@ -399,6 +465,7 @@ export default function Storefront() {
         ? { ...item, quantity: newQty }
         : item
     );
+
     setCart(updatedCart);
 
     if (currentUser) {
@@ -449,7 +516,7 @@ export default function Storefront() {
     const initialSize =
       shoe.available_sizes && shoe.available_sizes.length > 0
         ? shoe.available_sizes[0]
-        : shoeSize;
+        : "39";
     setCheckoutItems([
       {
         ...shoe,
@@ -509,7 +576,6 @@ export default function Storefront() {
     if (isSubmitting) return;
 
     setErrorMessage("");
-
     if (locationType === "rwanda") {
       const cleanedPhone = customerPhone.trim();
       const rwandaPhoneRegex = /^(78|79|72|73)\d{7}$/;
@@ -526,6 +592,7 @@ export default function Storefront() {
 
     const fullPhoneNumber =
       locationType === "rwanda" ? `250${customerPhone.trim()}` : customerPhone.trim();
+
     const locationDetails =
       locationType === "rwanda"
         ? `${province}, ${district} - ${localAddress}`
@@ -533,7 +600,7 @@ export default function Storefront() {
 
     const paymentMethodText =
       locationType === "rwanda"
-        ? `INTOUCH PAY (${selectedMomo.toUpperCase()})`
+        ? `Mobile Money (${selectedMomo.toUpperCase()})`
         : "International Order - Payment Pending";
 
     // Save order to Supabase
@@ -546,7 +613,7 @@ export default function Storefront() {
           customer_phone: `+${fullPhoneNumber}`,
           amount_rwf: item.price_rwf * item.quantity,
           user_id: currentUser ? currentUser.id : null,
-          payment_method: "intouch",
+          payment_method: selectedMomo,
           payment_status: "PENDING",
         }))
       )
@@ -566,7 +633,6 @@ export default function Storefront() {
     const reference = orderIds[0] ? orderIds[0].slice(0, 8).toUpperCase() : "";
     setOrderReference(reference);
 
-    // Call InTouch Rwanda Payment API endpoint if selected inside Rwanda
     if (locationType === "rwanda") {
       try {
         const intouchRes = await fetch("/api/intouch/checkout", {
@@ -581,10 +647,10 @@ export default function Storefront() {
         });
         const intouchData = await intouchRes.json();
         if (!intouchRes.ok || !intouchData.success) {
-          console.warn("InTouch direct API notice:", intouchData.message || "Push sent");
+          console.warn("Payment API notice:", intouchData.message || "Push sent");
         }
       } catch (err) {
-        console.error("InTouch API processing warning:", err);
+        console.error("Payment API processing warning:", err);
       }
     }
 
@@ -620,7 +686,6 @@ export default function Storefront() {
       payment_type: String(paymentMethodText),
     };
 
-    // Safely execute email dispatches with Promise.allSettled
     await Promise.allSettled([
       emailjs.send(
         "service_84glr5p",
@@ -897,7 +962,7 @@ export default function Storefront() {
                   <CreditCard className="w-6 h-6 text-black shrink-0" />
                   <div>
                     <h4 className="font-bold text-xs text-slate-900">
-                      InTouch Mobile Payments
+                      Mobile Payments
                     </h4>
                     <p className="text-[10px] text-slate-500">
                       Instant MTN MoMo & Airtel Money
@@ -1039,10 +1104,10 @@ export default function Storefront() {
                           </div>
                           <div className="flex items-center gap-1 sm:gap-1.5">
                             <button
-                              onClick={() => addToCart(shoe)}
+                              onClick={() => openSizePicker(shoe)}
                               disabled={!isInStock}
                               className="bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-800 font-semibold p-2 sm:p-2.5 rounded-xl text-xs transition"
-                              title={isInStock ? "Add to Shopping Bag" : "Currently Out of Stock"}
+                              title={isInStock ? "Select size & add to bag" : "Currently Out of Stock"}
                             >
                               <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </button>
@@ -1095,7 +1160,7 @@ export default function Storefront() {
                     Select Your Footwear & EU Size (20 - 60)
                   </h3>
                   <p className="text-xs text-slate-600 mt-1">
-                    Browse through our catalog and click on the <b>+</b> button on any item to open the checkout modal or save it into your Shopping Bag.
+                    Browse through our catalog, pick your preferred size, and click to add to your Shopping Bag or checkout directly.
                   </p>
                 </div>
               </div>
@@ -1118,10 +1183,10 @@ export default function Storefront() {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">
-                    Complete InTouch Payment Prompt
+                    Complete Mobile Payment Prompt
                   </h3>
                   <p className="text-xs text-slate-600 mt-1">
-                    Pay securely via <b>InTouch Pay (MTN MoMo or Airtel Money)</b> or <b>International Card</b>. Enter your active phone number to authorize the instant payment prompt.
+                    Pay securely via <b>MTN MoMo</b> or <b>Airtel Money</b>. Enter your active phone number to authorize the instant payment prompt.
                   </p>
                 </div>
               </div>
@@ -1160,7 +1225,7 @@ export default function Storefront() {
               <ul className="list-disc pl-5 space-y-1">
                 <li>100% Guaranteed Quality and Verified Footwear</li>
                 <li>Comprehensive Size Range (EU 20 - 60)</li>
-                <li>Fast Local & Provincial Delivery via Integrated InTouch Mobile Payments</li>
+                <li>Fast Local & Provincial Delivery via Mobile Money Payments</li>
                 <li>Clear and Fair Returns/Exchange Policy</li>
                 <li>Dedicated Customer Care Line ({DISPLAY_HELPLINE})</li>
               </ul>
@@ -1267,12 +1332,73 @@ export default function Storefront() {
               </p>
               <h3 className="font-bold text-sm text-slate-900">2. Refund Processing</h3>
               <p>
-                Approved refunds are processed back to the original Mobile Money account (MTN MoMo or Airtel Money via InTouch Pay) or International Card within <b>3–5 business days</b>.
+                Approved refunds are processed back to the original Mobile Money account (MTN MoMo or Airtel Money) or International Card within <b>3–5 business days</b>.
               </p>
             </div>
           </main>
         )}
       </div>
+
+      {/* QUICK SIZE SELECTOR MODAL FOR ADD TO CART */}
+      {sizePickerShoe && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl relative">
+            <button
+              onClick={() => setSizePickerShoe(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-black p-1"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex gap-3 items-center mb-4">
+              <img
+                src={sizePickerShoe.image_url}
+                alt={sizePickerShoe.name}
+                className="w-16 h-16 object-cover rounded-xl bg-slate-100"
+              />
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 line-clamp-1">
+                  {sizePickerShoe.name}
+                </h3>
+                <p className="text-xs font-black text-black">
+                  RWF {sizePickerShoe.price_rwf?.toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            <label className="block text-[11px] font-bold text-slate-600 uppercase mb-2">
+              Select Size (EU)
+            </label>
+
+            <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto py-1 scrollbar-thin mb-6">
+              {(sizePickerShoe.available_sizes && sizePickerShoe.available_sizes.length > 0
+                ? sizePickerShoe.available_sizes
+                : AVAILABLE_SIZES
+              ).map((sz) => (
+                <button
+                  type="button"
+                  key={sz}
+                  onClick={() => setSelectedSizeForAdd(sz)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    selectedSizeForAdd === sz
+                      ? "bg-black text-white shadow-md"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  EU {sz}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={confirmAddToCart}
+              className="w-full bg-black hover:bg-slate-800 text-white font-extrabold py-3.5 rounded-2xl text-xs transition shadow-lg flex items-center justify-center gap-2"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>Add Size EU {selectedSizeForAdd} to Bag</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* PRODUCT IMAGE QUICK VIEW MODAL */}
       {previewShoe && (
@@ -1328,8 +1454,9 @@ export default function Storefront() {
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={() => {
-                    addToCart(previewShoe);
+                    const shoeToOpen = previewShoe;
                     setPreviewShoe(null);
+                    openSizePicker(shoeToOpen);
                   }}
                   className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-2 transition"
                 >
@@ -1425,10 +1552,31 @@ export default function Storefront() {
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                          <span className="inline-block mt-0.5 text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                            Size: EU {item.selectedSize}
-                          </span>
+                          
+                          {/* IN-CART SIZE SELECTOR */}
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <span className="text-[10px] font-semibold text-slate-400">
+                              Size:
+                            </span>
+                            <select
+                              value={item.selectedSize}
+                              onChange={(e) =>
+                                updateCartItemSize(item.id, item.selectedSize, e.target.value)
+                              }
+                              className="text-[10px] font-bold text-slate-800 bg-slate-100 border border-slate-200 rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-black cursor-pointer"
+                            >
+                              {(item.available_sizes && item.available_sizes.length > 0
+                                ? item.available_sizes
+                                : AVAILABLE_SIZES
+                              ).map((sz) => (
+                                <option key={sz} value={sz}>
+                                  EU {sz}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
+
                         <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-50">
                           <p className="text-xs font-black text-slate-900">
                             RWF {(item.price_rwf * item.quantity).toLocaleString()}
@@ -1477,6 +1625,7 @@ export default function Storefront() {
                       </span>
                     </div>
                   </div>
+
                   <button
                     onClick={openCartCheckout}
                     className="w-full bg-black hover:bg-slate-800 text-white py-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transition duration-200 active:scale-[0.99]"
@@ -1485,7 +1634,7 @@ export default function Storefront() {
                     <ArrowRight className="w-4 h-4" />
                   </button>
                   <p className="text-[10px] text-center text-slate-400 flex items-center justify-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Powered by InTouch Mobile Payments
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Fast & Secure Checkout
                   </p>
                 </div>
               )}
@@ -1535,7 +1684,7 @@ export default function Storefront() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => {
-                            addToCart(shoe);
+                            openSizePicker(shoe);
                             toggleWishlist(shoe);
                           }}
                           className="bg-black text-white p-2 rounded-lg text-xs font-bold"
@@ -1614,7 +1763,7 @@ export default function Storefront() {
         </div>
       )}
 
-      {/* INTERACTIVE CHECKOUT MODAL WITH INTOUCH PAYMENT INTEGRATION */}
+      {/* CHECKOUT MODAL */}
       {isCheckoutOpen && checkoutItems.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
@@ -1624,6 +1773,7 @@ export default function Storefront() {
             >
               <X className="w-5 h-5" />
             </button>
+
             {paymentStatus === "form" && (
               <form onSubmit={handleCheckoutSubmit} className="space-y-4">
                 <div className="pb-4 border-b border-slate-100 space-y-2">
@@ -1691,7 +1841,7 @@ export default function Storefront() {
                               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                           }`}
                         >
-                          {sz}
+                          EU {sz}
                         </button>
                       ))}
                     </div>
@@ -1767,6 +1917,7 @@ export default function Storefront() {
                         </select>
                       </div>
                     </div>
+
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                         Street / Sector / House Address
@@ -1780,18 +1931,17 @@ export default function Storefront() {
                         className="w-full bg-slate-100 border-none rounded-xl text-xs p-2.5 font-medium focus:ring-2 focus:ring-black"
                       />
                     </div>
+
+                    {/* UPDATED PAYMENT GATEWAY BUTTONS (OLD INTOUCH REMOVED) */}
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                        Select Mobile Payment Method
+                        Select Mobile Payment Gateway
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            setPaymentProvider("intouch");
-                            setSelectedMomo("mtn");
-                          }}
-                          className={`py-2 px-2.5 rounded-xl text-[11px] font-extrabold border transition ${
+                          onClick={() => setSelectedMomo("mtn")}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-extrabold border transition ${
                             selectedMomo === "mtn"
                               ? "bg-yellow-400 text-black border-yellow-500 shadow-xs"
                               : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
@@ -1801,11 +1951,8 @@ export default function Storefront() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setPaymentProvider("intouch");
-                            setSelectedMomo("airtel");
-                          }}
-                          className={`py-2 px-2.5 rounded-xl text-[11px] font-extrabold border transition ${
+                          onClick={() => setSelectedMomo("airtel")}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-extrabold border transition ${
                             selectedMomo === "airtel"
                               ? "bg-red-600 text-white border-red-700 shadow-xs"
                               : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
@@ -1815,6 +1962,7 @@ export default function Storefront() {
                         </button>
                       </div>
                     </div>
+
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                         Payment Mobile Phone Number
@@ -1925,7 +2073,7 @@ export default function Storefront() {
                   </div>
                 </div>
 
-                {/* DYNAMIC INTOUCH / PRIMARY CHECKOUT BUTTON */}
+                {/* PRIMARY CHECKOUT SUBMIT BUTTON */}
                 {locationType === "rwanda" ? (
                   <button
                     type="submit"
@@ -1935,8 +2083,8 @@ export default function Storefront() {
                     <Smartphone className="w-4 h-4" />
                     <span>
                       {isSubmitting
-                        ? "Connecting to InTouch Pay..."
-                        : `Pay RWF ${finalTotalPrice.toLocaleString()} via InTouch Pay`}
+                        ? "Connecting Mobile Gateway..."
+                        : `Pay RWF ${finalTotalPrice.toLocaleString()} via ${selectedMomo.toUpperCase()}`}
                     </span>
                   </button>
                 ) : (
@@ -1958,7 +2106,7 @@ export default function Storefront() {
                 <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
                 <h4 className="font-extrabold text-sm text-slate-900">
                   {locationType === "rwanda"
-                    ? "InTouch Pay Request Sent..."
+                    ? "Mobile Payment Request Sent..."
                     : "Reserving Your Order..."}
                 </h4>
                 <p className="text-xs text-slate-500">
