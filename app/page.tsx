@@ -37,6 +37,7 @@ const FacebookIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
   </svg>
 );
+
 const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg
     className={className}
@@ -52,6 +53,7 @@ const InstagramIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
   </svg>
 );
+
 const TikTokIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
     <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 1 1-5.2-1.74 2.89 2.89 0 0 1 2.31-1.42V8.9a6.34 6.34 0 0 0-3.38.97 6.34 6.34 0 1 0 9.72 5.43V8.8a8.21 8.21 0 0 0 4.77 1.52V6.86a4.85 4.85 0 0 1-1.00-.17z" />
@@ -107,7 +109,6 @@ export default function Storefront() {
   const [previewShoe, setPreviewShoe] = useState<Shoe | null>(null);
   const [sizePickerShoe, setSizePickerShoe] = useState<Shoe | null>(null);
   const [selectedSizeForAdd, setSelectedSizeForAdd] = useState<string>("39");
-
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 12;
   const [hasMore, setHasMore] = useState(true);
@@ -133,7 +134,6 @@ export default function Storefront() {
   const HELPLINE_NUMBER = "+250781827386";
   const DISPLAY_HELPLINE = "0781827386";
   const OWNER_EMAIL = "patientira79@gmail.com";
-
   const SOCIAL_HANDLES = {
     facebook: "https://facebook.com/kigali.shoes.hub",
     instagram: "https://instagram.com/kigali.shoes.hub",
@@ -188,7 +188,6 @@ export default function Storefront() {
         loadFromLocalStorage();
       }
     });
-
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         const user = session?.user ?? null;
@@ -201,7 +200,6 @@ export default function Storefront() {
         }
       }
     );
-
     return () => {
       authListener.subscription.unsubscribe();
     };
@@ -224,19 +222,16 @@ export default function Storefront() {
         .from("wishlist_items")
         .select("shoe_id, shoes(*)")
         .eq("user_id", userId);
-
       if (dbWishlist) {
         const fetchedWishlist: Shoe[] = dbWishlist
           .map((item: any) => item.shoes)
           .filter(Boolean);
         setWishlist(fetchedWishlist);
       }
-
       const { data: dbCart } = await supabase
         .from("cart_items")
         .select("shoe_id, selected_size, quantity, shoes(*)")
         .eq("user_id", userId);
-
       if (dbCart) {
         const fetchedCart: CartItem[] = dbCart
           .map((item: any) =>
@@ -272,15 +267,12 @@ export default function Storefront() {
     const currentPage = isInitial ? 0 : page;
     const from = currentPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-
     let query = supabase.from("shoes").select("*", { count: "exact" });
-
     if (debouncedSearch.trim()) {
       query = query.or(
         `name.ilike.%${debouncedSearch.trim()}%,brand.ilike.%${debouncedSearch.trim()}%`
       );
     }
-
     if (selectedCategory === "Popular") {
       query = query.eq("is_featured", true).order("created_at", { ascending: false });
     } else if (selectedCategory === "Lowest price") {
@@ -294,9 +286,7 @@ export default function Storefront() {
     } else {
       query = query.order("created_at", { ascending: false });
     }
-
     const { data, count, error } = await query.range(from, to);
-
     if (error) {
       console.error("Error fetching footwear from Supabase:", error.message);
     } else {
@@ -321,9 +311,7 @@ export default function Storefront() {
     const updatedWishlist = isWishlisted
       ? wishlist.filter((item) => item.id !== shoe.id)
       : [...wishlist, shoe];
-
     setWishlist(updatedWishlist);
-
     if (currentUser) {
       if (isWishlisted) {
         await supabase
@@ -361,7 +349,6 @@ export default function Storefront() {
     const existingIndex = cart.findIndex(
       (item) => item.id === shoe.id && item.selectedSize === size
     );
-
     if (existingIndex > -1) {
       updatedCart = cart.map((item, idx) =>
         idx === existingIndex
@@ -371,9 +358,7 @@ export default function Storefront() {
     } else {
       updatedCart = [...cart, { ...shoe, selectedSize: size, quantity: 1 }];
     }
-
     setCart(updatedCart);
-
     if (currentUser) {
       const newQty = existingIndex > -1 ? cart[existingIndex].quantity + 1 : 1;
       await supabase.from("cart_items").upsert(
@@ -392,17 +377,13 @@ export default function Storefront() {
 
   const updateCartItemSize = async (id: string, oldSize: string, newSize: string) => {
     if (oldSize === newSize) return;
-
     const existingTargetIndex = cart.findIndex(
       (item) => item.id === id && item.selectedSize === newSize
     );
-
     let updatedCart: CartItem[] = [];
-
     if (existingTargetIndex > -1) {
       const oldItem = cart.find((item) => item.id === id && item.selectedSize === oldSize);
       const addedQty = oldItem ? oldItem.quantity : 1;
-
       updatedCart = cart
         .filter((item) => !(item.id === id && item.selectedSize === oldSize))
         .map((item) =>
@@ -417,9 +398,7 @@ export default function Storefront() {
           : item
       );
     }
-
     setCart(updatedCart);
-
     if (currentUser) {
       await supabase
         .from("cart_items")
@@ -427,11 +406,9 @@ export default function Storefront() {
         .eq("user_id", currentUser.id)
         .eq("shoe_id", id)
         .eq("selected_size", oldSize);
-
       const updatedItem = updatedCart.find(
         (item) => item.id === id && item.selectedSize === newSize
       );
-
       if (updatedItem) {
         await supabase.from("cart_items").upsert(
           {
@@ -453,21 +430,17 @@ export default function Storefront() {
       (item) => item.id === id && item.selectedSize === size
     );
     if (!itemToUpdate) return;
-
     const newQty = itemToUpdate.quantity + delta;
     if (newQty <= 0) {
       removeFromCart(id, size);
       return;
     }
-
     const updatedCart = cart.map((item) =>
       item.id === id && item.selectedSize === size
         ? { ...item, quantity: newQty }
         : item
     );
-
     setCart(updatedCart);
-
     if (currentUser) {
       await supabase
         .from("cart_items")
@@ -485,7 +458,6 @@ export default function Storefront() {
       (item) => !(item.id === id && item.selectedSize === size)
     );
     setCart(updatedCart);
-
     if (currentUser) {
       await supabase
         .from("cart_items")
@@ -574,8 +546,8 @@ export default function Storefront() {
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-
     setErrorMessage("");
+
     if (locationType === "rwanda") {
       const cleanedPhone = customerPhone.trim();
       const rwandaPhoneRegex = /^(78|79|72|73)\d{7}$/;
@@ -592,12 +564,10 @@ export default function Storefront() {
 
     const fullPhoneNumber =
       locationType === "rwanda" ? `250${customerPhone.trim()}` : customerPhone.trim();
-
     const locationDetails =
       locationType === "rwanda"
         ? `${province}, ${district} - ${localAddress}`
         : `${abroadAddress}, ${country}`;
-
     const paymentMethodText =
       locationType === "rwanda"
         ? `Mobile Money (${selectedMomo.toUpperCase()})`
@@ -1364,11 +1334,9 @@ export default function Storefront() {
                 </p>
               </div>
             </div>
-
             <label className="block text-[11px] font-bold text-slate-600 uppercase mb-2">
               Select Size (EU)
             </label>
-
             <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto py-1 scrollbar-thin mb-6">
               {(sizePickerShoe.available_sizes && sizePickerShoe.available_sizes.length > 0
                 ? sizePickerShoe.available_sizes
@@ -1388,7 +1356,6 @@ export default function Storefront() {
                 </button>
               ))}
             </div>
-
             <button
               onClick={confirmAddToCart}
               className="w-full bg-black hover:bg-slate-800 text-white font-extrabold py-3.5 rounded-2xl text-xs transition shadow-lg flex items-center justify-center gap-2"
@@ -1507,7 +1474,6 @@ export default function Storefront() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 {cart.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center py-12">
@@ -1576,7 +1542,6 @@ export default function Storefront() {
                             </select>
                           </div>
                         </div>
-
                         <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-50">
                           <p className="text-xs font-black text-slate-900">
                             RWF {(item.price_rwf * item.quantity).toLocaleString()}
@@ -1604,7 +1569,6 @@ export default function Storefront() {
                   ))
                 )}
               </div>
-
               {cart.length > 0 && (
                 <div className="p-6 border-t border-slate-100 bg-white space-y-4 shadow-lg">
                   <div className="space-y-2">
@@ -1625,7 +1589,6 @@ export default function Storefront() {
                       </span>
                     </div>
                   </div>
-
                   <button
                     onClick={openCartCheckout}
                     className="w-full bg-black hover:bg-slate-800 text-white py-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xl hover:shadow-2xl transition duration-200 active:scale-[0.99]"
@@ -1773,7 +1736,6 @@ export default function Storefront() {
             >
               <X className="w-5 h-5" />
             </button>
-
             {paymentStatus === "form" && (
               <form onSubmit={handleCheckoutSubmit} className="space-y-4">
                 <div className="pb-4 border-b border-slate-100 space-y-2">
@@ -1807,14 +1769,12 @@ export default function Storefront() {
                     ))}
                   </div>
                 </div>
-
                 {errorMessage && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{errorMessage}</span>
                   </div>
                 )}
-
                 {checkoutItems.length === 1 && (
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
@@ -1847,7 +1807,6 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
-
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                     Delivery Destination
@@ -1877,7 +1836,6 @@ export default function Storefront() {
                     </button>
                   </div>
                 </div>
-
                 {locationType === "rwanda" ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
@@ -1917,7 +1875,6 @@ export default function Storefront() {
                         </select>
                       </div>
                     </div>
-
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                         Street / Sector / House Address
@@ -1931,8 +1888,7 @@ export default function Storefront() {
                         className="w-full bg-slate-100 border-none rounded-xl text-xs p-2.5 font-medium focus:ring-2 focus:ring-black"
                       />
                     </div>
-
-                    {/* UPDATED PAYMENT GATEWAY BUTTONS (OLD INTOUCH REMOVED) */}
+                    {/* PAYMENT GATEWAY BUTTONS */}
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                         Select Mobile Payment Gateway
@@ -1962,7 +1918,6 @@ export default function Storefront() {
                         </button>
                       </div>
                     </div>
-
                     <div>
                       <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                         Payment Mobile Phone Number
@@ -2039,7 +1994,6 @@ export default function Storefront() {
                     </div>
                   </div>
                 )}
-
                 <div>
                   <label className="block text-[10px] font-semibold text-slate-500 mb-1">
                     Email Address (For Order Receipt)
@@ -2053,7 +2007,6 @@ export default function Storefront() {
                     className="w-full bg-slate-100 border-none rounded-xl text-xs p-2.5 font-medium focus:ring-2 focus:ring-black"
                   />
                 </div>
-
                 <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-1.5 text-xs text-slate-700">
                   <div className="flex justify-between">
                     <span>Items Subtotal ({checkoutItems.length}):</span>
@@ -2072,7 +2025,6 @@ export default function Storefront() {
                     <span>RWF {finalTotalPrice.toLocaleString()}</span>
                   </div>
                 </div>
-
                 {/* PRIMARY CHECKOUT SUBMIT BUTTON */}
                 {locationType === "rwanda" ? (
                   <button
@@ -2100,7 +2052,6 @@ export default function Storefront() {
                 )}
               </form>
             )}
-
             {paymentStatus === "processing" && (
               <div className="py-12 text-center space-y-4">
                 <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -2116,7 +2067,6 @@ export default function Storefront() {
                 </p>
               </div>
             )}
-
             {paymentStatus === "error" && (
               <div className="py-8 text-center space-y-4">
                 <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
@@ -2134,7 +2084,6 @@ export default function Storefront() {
                 </button>
               </div>
             )}
-
             {paymentStatus === "success" && (
               <div className="py-8 text-center space-y-4">
                 <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
