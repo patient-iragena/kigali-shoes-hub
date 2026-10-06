@@ -96,7 +96,7 @@ export default function Storefront() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [activeView, setActiveView] = useState<
-    "home" | "products" | "contact" | "how-to-buy" | "about" | "returns"
+    "home" | "products" | "contact" | "how-to-buy" | "about" | "returns" | "privacy"
   >("home");
   const [wishlist, setWishlist] = useState<Shoe[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -169,7 +169,7 @@ export default function Storefront() {
       "Nyamagabe",
       "Nyanza",
       "Nyaruguru",
-      "Rruhango",
+      "Ruhango",
     ],
   };
 
@@ -573,6 +573,13 @@ export default function Storefront() {
         ? `Mobile Money (${selectedMomo.toUpperCase()})`
         : "International Order - Payment Pending";
 
+    // Every item in this checkout shares one group id, so a multi-item
+    // cart checkout can be tracked and paid for as a single transaction.
+    const checkoutGroupId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     // Save order to Supabase
     const { data: savedOrders, error: ordersError } = await supabase
       .from("orders")
@@ -585,6 +592,7 @@ export default function Storefront() {
           user_id: currentUser ? currentUser.id : null,
           payment_method: selectedMomo,
           payment_status: "PENDING",
+          checkout_group_id: checkoutGroupId,
         }))
       )
       .select("id");
@@ -600,27 +608,30 @@ export default function Storefront() {
     }
 
     const orderIds = savedOrders.map((o) => o.id);
-    const reference = orderIds[0] ? orderIds[0].slice(0, 8).toUpperCase() : "";
+    // Short reference shown to the customer on screen and in emails (display only).
+    const reference = checkoutGroupId.slice(0, 8).toUpperCase();
     setOrderReference(reference);
 
-    if (locationType === "rwanda") {
+    if (locationType === "rwanda" && orderIds.length > 0) {
       try {
-        const intouchRes = await fetch("/api/intouch/checkout", {
+        const paymentRes = await fetch("/api/intouch/request", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             amount: finalTotalPrice,
             phone: fullPhoneNumber,
-            orderRef: reference,
-            email: customerEmail,
+            // The checkout group id is sent here, not a single order's id -
+            // the payment callback matches on this and updates every order
+            // row from this checkout, not just the first one.
+            orderId: checkoutGroupId,
           }),
         });
-        const intouchData = await intouchRes.json();
-        if (!intouchRes.ok || !intouchData.success) {
-          console.warn("Payment API notice:", intouchData.message || "Push sent");
+        const paymentData = await paymentRes.json();
+        if (!paymentRes.ok || paymentData?.success === false) {
+          console.warn("Payment request notice:", paymentData?.message || "Push sent");
         }
       } catch (err) {
-        console.error("Payment API processing warning:", err);
+        console.error("Payment request warning:", err);
       }
     }
 
@@ -747,7 +758,7 @@ export default function Storefront() {
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-6 font-semibold text-xs text-slate-700">
-              {(["home", "products", "how-to-buy", "about", "contact", "returns"] as const).map(
+              {(["home", "products", "how-to-buy", "about", "contact", "returns", "privacy"] as const).map(
                 (view) => (
                   <button
                     key={view}
@@ -834,7 +845,7 @@ export default function Storefront() {
           {/* Mobile Navigation Dropdown */}
           {isMobileMenuOpen && (
             <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-3 text-xs font-semibold text-slate-800 shadow-lg">
-              {(["home", "products", "how-to-buy", "about", "contact", "returns"] as const).map(
+              {(["home", "products", "how-to-buy", "about", "contact", "returns", "privacy"] as const).map(
                 (view) => (
                   <button
                     key={view}
@@ -1298,11 +1309,57 @@ export default function Storefront() {
             <div className="bg-white p-8 rounded-2xl border border-slate-200 space-y-4 text-xs text-slate-700 leading-relaxed shadow-xs">
               <h3 className="font-bold text-sm text-slate-900">1. Size Exchange Eligibility</h3>
               <p>
-                If your shoe fit is incorrect, size exchange requests are accepted within <b>48 hours</b> of delivery inside Rwanda. Items must remain unworn, undamaged, and inside original packaging.
+                If your shoe fit is incorrect, size exchange requests are accepted within <b>48 hours</b> of delivery inside Rwanda. Items must remain unworn, undamaged, and inside original packaging, with proof of purchase (your order reference number).
               </p>
-              <h3 className="font-bold text-sm text-slate-900">2. Refund Processing</h3>
+              <h3 className="font-bold text-sm text-slate-900">2. How to Request an Exchange</h3>
               <p>
-                Approved refunds are processed back to the original Mobile Money account (MTN MoMo or Airtel Money) or International Card within <b>3–5 business days</b>.
+                Contact our support team using the details on the <b>Contact</b> page with your order reference number and the issue. We will confirm pickup or drop-off arrangements for the item being exchanged.
+              </p>
+              <h3 className="font-bold text-sm text-slate-900">3. Non-Returnable Items</h3>
+              <p>
+                For hygiene reasons, worn or damaged items, and items without original packaging, cannot be accepted for exchange or refund.
+              </p>
+              <h3 className="font-bold text-sm text-slate-900">4. Refund Processing</h3>
+              <p>
+                Approved refunds are processed back to the original Mobile Money account (MTN MoMo or Airtel Money) within <b>3–5 business days</b>. International orders are refunded using the payment method arranged with our team.
+              </p>
+            </div>
+          </main>
+        )}
+
+        {/* Privacy Policy Page */}
+        {activeView === "privacy" && (
+          <main className="max-w-4xl mx-auto px-4 py-12">
+            <h2 className="text-2xl font-black text-slate-900 mb-2">
+              Privacy Policy
+            </h2>
+            <p className="text-xs text-slate-500 mb-8">
+              How Kigali Shoes Hub collects, uses, and protects your information.
+            </p>
+            <div className="bg-white p-8 rounded-2xl border border-slate-200 space-y-4 text-xs text-slate-700 leading-relaxed shadow-xs">
+              <h3 className="font-bold text-sm text-slate-900">1. Information We Collect</h3>
+              <p>
+                When you place an order, we collect the information needed to fulfill it: your name, email address, phone number, delivery address, and order details (items, sizes, and amount). If you sign in with Google, we receive your name and email address from your Google account.
+              </p>
+              <h3 className="font-bold text-sm text-slate-900">2. How We Use Your Information</h3>
+              <p>
+                Your information is used to process and deliver your order, send order confirmations and updates by email, provide customer support, and improve our service. We do not sell your personal information to third parties.
+              </p>
+              <h3 className="font-bold text-sm text-slate-900">3. Payments</h3>
+              <p>
+                Mobile Money payments (MTN MoMo and Airtel Money) are processed through a licensed Rwandan payment gateway. We do not see or store your Mobile Money PIN at any point - approval happens directly on your phone with your provider. We do not collect or store card numbers on this website.
+              </p>
+              <h3 className="font-bold text-sm text-slate-900">4. Data Storage & Security</h3>
+              <p>
+                Order and account data is stored with access controls limiting who can view it. Only authorized Kigali Shoes Hub staff can access customer order details, and only as needed to fulfill and support your order.
+              </p>
+              <h3 className="font-bold text-sm text-slate-900">5. Your Choices</h3>
+              <p>
+                You may contact us at any time to ask what information we hold about you, to correct it, or to request it be deleted, subject to any records we are required to keep for order and payment history.
+              </p>
+              <h3 className="font-bold text-sm text-slate-900">6. Contact</h3>
+              <p>
+                Questions about this policy can be sent to {OWNER_EMAIL} or our support line at {DISPLAY_HELPLINE}.
               </p>
             </div>
           </main>
@@ -2150,6 +2207,11 @@ export default function Storefront() {
                   Return & Refunds Policy
                 </button>
               </li>
+              <li>
+                <button onClick={() => setActiveView("privacy")} className="hover:text-white transition-colors">
+                  Privacy Policy
+                </button>
+              </li>
             </ul>
           </div>
           <div className="space-y-2">
@@ -2213,6 +2275,10 @@ export default function Storefront() {
         <div className="border-t border-gray-800 bg-black py-4 px-4 sm:px-8">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 text-gray-400 text-[11px]">
             <span>© {new Date().getFullYear()} Kigali Shoes Hub. All rights reserved.</span>
+            <span className="text-gray-500 tracking-wide">
+              Developed by{" "}
+              <span className="text-gray-300 font-semibold">Irapa Technology</span>
+            </span>
           </div>
         </div>
       </footer>

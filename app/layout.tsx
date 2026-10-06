@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { GoogleAnalytics } from '@next/third-parties/google'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -50,9 +51,13 @@ export default function RootLayout({
       addressCountry: 'RW',
     },
     sameAs: [
-      'https://www.instagram.com/kigalishoeshub', // Replace with your exact Instagram URL if different
+      'https://www.instagram.com/kigalishoeshub',
     ],
   }
+
+  // Only loads if the env var is set - keeps analytics out of local/dev
+  // runs where it isn't configured, instead of crashing or sending dev traffic.
+  const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
 
   return (
     <html lang="en">
@@ -63,6 +68,7 @@ export default function RootLayout({
         />
       </head>
       <body>{children}</body>
+      {gaMeasurementId && <GoogleAnalytics gaId={gaMeasurementId} />}
     </html>
   )
 }
