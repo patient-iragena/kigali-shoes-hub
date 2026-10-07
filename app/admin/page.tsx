@@ -218,12 +218,28 @@ export default function AdminDashboard() {
       };
 
       if (editingId) {
-        const { error: updateError } = await supabase
+        // .select() makes Supabase return the rows that were actually
+        // changed. If RLS or a bad id silently matches zero rows, `error`
+        // stays null (this is NOT a database error) but `data` comes back
+        // as an empty array - which is exactly the "false success" we're
+        // trying to catch here.
+        const { data: updatedRows, error: updateError } = await supabase
           .from('shoes')
           .update(payload)
-          .eq('id', editingId);
+          .eq('id', editingId)
+          .select();
 
         if (updateError) throw updateError;
+
+        if (!updatedRows || updatedRows.length === 0) {
+          alert(
+            `Update ran with no error, but 0 rows were changed for id "${editingId}". ` +
+            `This means the id didn't match any row, or a permission rule silently blocked it.`
+          );
+          setUploading(false);
+          return;
+        }
+
         alert('Footwear updated successfully!');
       } else {
         if (!imageFile && !imageUrl) {
