@@ -2,11 +2,18 @@
 export const dynamic = 'force-dynamic'
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// FIX: this must be the SAME client type as the login page and middleware
+// use (createBrowserClient from @supabase/ssr, cookie-based session) - not
+// the plain @supabase/supabase-js client, which reads localStorage instead
+// and never saw the session that login actually created. That mismatch is
+// why every save silently affected 0 rows: every request here was going
+// out as an anonymous, unauthenticated visitor.
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface Shoe {
   id: string;
