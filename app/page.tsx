@@ -29,7 +29,9 @@ import {
   ShoppingBasket,
   LogOut,
   Smartphone,
+  Forward,
 } from "lucide-react";
+import { shareShoe } from "@/lib/shareShoe";
 
 // Social Media Custom SVG Icons
 const FacebookIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
@@ -107,6 +109,35 @@ export default function Storefront() {
   
   // State for Product Quick View / Size Selector Modal
   const [previewShoe, setPreviewShoe] = useState<Shoe | null>(null);
+  const [shareMsg, setShareMsg] = useState("");
+
+  const handleShare = async (shoe: Shoe) => {
+    setShareMsg("Preparing picture...");
+    const result = await shareShoe(shoe);
+    const msgs: Record<string, string> = {
+      shared: "",
+      "link-shared": "",
+      downloaded: "Picture saved & link copied. Post it on your status!",
+      copied: "Link copied!",
+      cancelled: "",
+    };
+    setShareMsg(msgs[result] || "");
+    if (msgs[result]) setTimeout(() => setShareMsg(""), 3500);
+  };
+
+  // Open a shoe directly from a shared link: /?shoe=<id>
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("shoe");
+    if (!id) return;
+    supabase
+      .from("shoes")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setPreviewShoe(data as Shoe);
+      });
+  }, []);
   const [sizePickerShoe, setSizePickerShoe] = useState<Shoe | null>(null);
   const [selectedSizeForAdd, setSelectedSizeForAdd] = useState<string>("39");
   const [page, setPage] = useState(0);
@@ -1085,6 +1116,14 @@ export default function Storefront() {
                           </div>
                           <div className="flex items-center gap-1 sm:gap-1.5">
                             <button
+                              onClick={() => handleShare(shoe)}
+                              aria-label="Share this shoe"
+                              title="Share this shoe"
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-800 p-2 sm:p-2.5 rounded-xl transition"
+                            >
+                              <Forward className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </button>
+                            <button
                               onClick={() => openSizePicker(shoe)}
                               disabled={!isInStock}
                               className="bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-800 font-semibold p-2 sm:p-2.5 rounded-xl text-xs transition"
@@ -1424,6 +1463,12 @@ export default function Storefront() {
         </div>
       )}
 
+      {shareMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-black text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg">
+          {shareMsg}
+        </div>
+      )}
+
       {/* PRODUCT IMAGE QUICK VIEW MODAL */}
       {previewShoe && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
@@ -1485,6 +1530,13 @@ export default function Storefront() {
                   className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-2 transition"
                 >
                   <ShoppingBag className="w-4 h-4" /> Add To Bag
+                </button>
+                <button
+                  onClick={() => handleShare(previewShoe)}
+                  aria-label="Share this shoe"
+                  className="px-4 bg-green-50 hover:bg-green-100 text-green-700 font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition border border-green-200"
+                >
+                  <Forward className="w-4 h-4" /> Share
                 </button>
                 <button
                   onClick={() => {
