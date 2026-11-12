@@ -42,7 +42,13 @@ export async function POST(req: Request) {
       .select('id, amount_rwf, payment_status, customer_phone, created_at, shoes(price_rwf)')
       .eq('checkout_group_id', groupId)
 
-    if (ordersError || !orders || orders.length === 0) {
+    if (ordersError) {
+      // Real database/key problem - log it so it shows up in Vercel logs
+      console.error('Order lookup failed:', ordersError.message)
+      return NextResponse.json({ success: false, error: 'Could not check the order' }, { status: 500 })
+    }
+    if (!orders || orders.length === 0) {
+      console.error('Order not found for checkout_group_id', groupId)
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 })
     }
 
