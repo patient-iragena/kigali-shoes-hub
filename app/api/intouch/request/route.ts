@@ -152,7 +152,7 @@ export async function POST(req: Request) {
 
     // Log the full response for now while we're testing - remove or reduce
     // this once everything is confirmed working.
-    console.log('IntouchPay requestpayment response:', data)
+    console.log('IntouchPay requestpayment response: ' + JSON.stringify(data))
 
     return NextResponse.json(data)
   } catch (error: any) {
