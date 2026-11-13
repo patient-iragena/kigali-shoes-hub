@@ -678,6 +678,40 @@ export default function Storefront() {
         setIsSubmitting(false);
         return;
       }
+
+      // Wait for the customer to enter their MoMo PIN. The payment callback
+      // updates the order to PAID or FAILED; we check every 3 seconds (max 2 min).
+      const pollPhone = `+${fullPhoneNumber}`;
+      let finalStatus: string | null = null;
+      for (let i = 0; i < 40; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const { data: statusRows } = await supabase.rpc("get_order_by_id", {
+          p_order_id: orderIds[0],
+          p_phone: pollPhone,
+        });
+        const status = Array.isArray(statusRows) ? statusRows[0]?.payment_status : null;
+        if (status === "PAID" || status === "FAILED") {
+          finalStatus = status;
+          break;
+        }
+      }
+
+      if (finalStatus === "FAILED") {
+        setErrorMessage(
+          "The payment was not completed (cancelled, declined or timed out). Nothing was charged. Please try again."
+        );
+        setPaymentStatus("error");
+        setIsSubmitting(false);
+        return;
+      }
+      if (finalStatus !== "PAID") {
+        setErrorMessage(
+          `We have not received your payment confirmation yet. If you already approved the payment, do not pay again - our team will confirm it and contact you. Questions? Call ${DISPLAY_HELPLINE}.`
+        );
+        setPaymentStatus("error");
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     const itemsSummary = checkoutItems
@@ -2185,7 +2219,7 @@ export default function Storefront() {
                 </h4>
                 <p className="text-xs text-slate-500">
                   {locationType === "rwanda"
-                    ? "Please check your phone (+250 " + customerPhone + ") and approve the prompt."
+                    ? "Please check your phone (+250 " + customerPhone + "), enter your MoMo PIN to approve the payment, and keep this page open."
                     : "We're saving your order details for our team to follow up."}
                 </p>
               </div>
@@ -2212,15 +2246,9 @@ export default function Storefront() {
                 <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
                 <h4 className="font-extrabold text-lg text-slate-900">
                   {locationType === "rwanda"
-                    ? "Payment Request Sent!"
+                    ? "Payment Received - Order Confirmed!"
                     : "Order Placed Successfully!"}
                 </h4>
-                {locationType === "rwanda" && (
-                  <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl p-3 leading-relaxed">
-                    Please approve the prompt on your phone to complete payment.
-                    Your order is confirmed once the payment goes through.
-                  </p>
-                )}
                 <p className="text-xs text-slate-600 leading-relaxed">
                   We sent an automated email receipt to <b>{customerEmail}</b>. Our support team will contact you shortly on{" "}
                   <b>
