@@ -644,6 +644,7 @@ export default function Storefront() {
     setOrderReference(reference);
 
     if (locationType === "rwanda" && orderIds.length > 0) {
+      let paymentRequestFailed = false;
       try {
         const paymentRes = await fetch("/api/intouch/request", {
           method: "POST",
@@ -657,12 +658,25 @@ export default function Storefront() {
             orderId: checkoutGroupId,
           }),
         });
-        const paymentData = await paymentRes.json();
-        if (!paymentRes.ok || paymentData?.success === false) {
-          console.warn("Payment request notice:", paymentData?.message || "Push sent");
+        const paymentData = await paymentRes.json().catch(() => null);
+        if (!paymentRes.ok || !paymentData || paymentData.success === false) {
+          console.warn("Payment request failed:", paymentData?.error || paymentData?.message);
+          paymentRequestFailed = true;
         }
       } catch (err) {
-        console.error("Payment request warning:", err);
+        console.error("Payment request error:", err);
+        paymentRequestFailed = true;
+      }
+
+      if (paymentRequestFailed) {
+        // Be honest: do NOT show "Order Placed" or send receipts when the
+        // payment prompt could not be sent. The cart is kept so they can retry.
+        setErrorMessage(
+          `We could not send the payment request to your phone. Nothing was charged. Please check your number and try again, or call ${DISPLAY_HELPLINE}.`
+        );
+        setPaymentStatus("error");
+        setIsSubmitting(false);
+        return;
       }
     }
 
@@ -2197,8 +2211,16 @@ export default function Storefront() {
               <div className="py-8 text-center space-y-4">
                 <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto" />
                 <h4 className="font-extrabold text-lg text-slate-900">
-                  Order Placed Successfully!
+                  {locationType === "rwanda"
+                    ? "Payment Request Sent!"
+                    : "Order Placed Successfully!"}
                 </h4>
+                {locationType === "rwanda" && (
+                  <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl p-3 leading-relaxed">
+                    Please approve the prompt on your phone to complete payment.
+                    Your order is confirmed once the payment goes through.
+                  </p>
+                )}
                 <p className="text-xs text-slate-600 leading-relaxed">
                   We sent an automated email receipt to <b>{customerEmail}</b>. Our support team will contact you shortly on{" "}
                   <b>
