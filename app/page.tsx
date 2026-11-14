@@ -624,6 +624,9 @@ export default function Storefront() {
           payment_method: selectedMomo,
           payment_status: "PENDING",
           checkout_group_id: checkoutGroupId,
+          customer_email: customerEmail || null,
+          location_details: locationDetails,
+          delivery_fee_rwf: deliveryFee,
         }))
       )
       .select("id");
@@ -746,6 +749,10 @@ export default function Storefront() {
       payment_type: String(paymentMethodText),
     };
 
+    // Rwanda (mobile money) orders: the SERVER sends the emails when the
+    // payment is confirmed. Orders from abroad have no online payment, so
+    // their emails are sent right away from here.
+    if (locationType !== "rwanda") {
     await Promise.allSettled([
       emailjs.send(
         "service_84glr5p",
@@ -760,6 +767,7 @@ export default function Storefront() {
         "83vF3uD9oYthKT_vR"
       ),
     ]);
+    }
 
     setPaymentStatus("success");
     setIsSubmitting(false);

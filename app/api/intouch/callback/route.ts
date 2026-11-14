@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { sendPaidEmails } from '@/lib/send-paid-emails'
 
 // IntouchPay's "terminal" statuses (final, won't change again) map to our
 // payment_status values. "Pending" is transient and shouldn't normally
@@ -99,6 +100,13 @@ export async function POST(req: Request) {
         requestTransactionId,
         updateError.message
       )
+    }
+
+    // Payment just confirmed: notify the owner and the customer by email.
+    // (Only reached the first time - repeat callbacks stop at the
+    // "already finalized" check above, so no duplicate emails.)
+    if (!updateError && newStatus === 'PAID') {
+      await sendPaidEmails(requestTransactionId)
     }
 
     return acknowledge(requestTransactionId)
